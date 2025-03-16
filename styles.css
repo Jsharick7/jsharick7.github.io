@@ -12,19 +12,90 @@ header {
     padding: 20px;
 }
 
+nav a {
+    color: white;
+    margin: 0 10px;
+}
+
 main {
     padding: 20px;
 }
 
-section {
-    margin: 20px 0;
+/* Game Grid */
+.game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-footer {
-    background-color: #333;
-    color: white;
+.game-tile {
+    background-color: #fff;
+    border: 2px solid #333;
+    border-radius: 8px;
     padding: 10px;
-    position: fixed;
-    bottom: 0;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.game-tile:hover {
+    transform: scale(1.05);
+}
+
+.game-placeholder {
     width: 100%;
+    height: 120px;
+    background-color: #ccc;
+    border: 1px dashed #666;
+    margin-bottom: 10px;
+}
+
+h3 {
+    margin: 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+/* Game Focus Overlay */
+.game-focus {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.game-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 900px;
+    width: 90%;
+    position: relative;
+}
+
+#close-focus {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#pongCanvas {
+    border: 1px solid #333;
+}
+
+.hidden {
+    display: none;
 }
