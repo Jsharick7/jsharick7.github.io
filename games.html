@@ -50,4 +50,67 @@
                 <div class="game-placeholder"></div>
                 <h3>Neon Shooter</h3>
             </div>
-            <div class="game
+            <div class="game-tile" data-game="maze-runner">
+                <div class="game-placeholder"></div>
+                <h3>Maze Runner</h3>
+            </div>
+            <div class="game-tile" data-game="turbo-tanks">
+                <div class="game-placeholder"></div>
+                <h3>Turbo Tanks</h3>
+            </div>
+            <div class="game-tile" data-game="ghost-chase">
+                <div class="game-placeholder"></div>
+                <h3>Ghost Chase</h3>
+            </div>
+            <div class="game-tile" data-game="block-stack">
+                <div class="game-placeholder"></div>
+                <h3>Block Stack</h3>
+            </div>
+            <div class="game-tile" data-game="laser-clash">
+                <div class="game-placeholder"></div>
+                <h3>Laser Clash</h3>
+            </div>
+            <div class="game-tile" data-game="rocket-run">
+                <div class="game-placeholder"></div>
+                <h3>Rocket Run</h3>
+            </div>
+            <div class="game-tile" data-game="bit-bomber">
+                <div class="game-placeholder"></div>
+                <h3>Bit Bomber</h3>
+            </div>
+            <div class="game-tile" data-game="arcade-hoops">
+                <div class="game-placeholder"></div>
+                <h3>Arcade Hoops</h3>
+            </div>
+            <div class="game-tile" data-game="time-trial">
+                <div class="game-placeholder"></div>
+                <h3>Time Trial</h3>
+            </div>
+            <div class="game-tile" data-game="cosmo-crush">
+                <div class="game-placeholder"></div>
+                <h3>Cosmo Crush</h3>
+            </div>
+            <div class="game-tile" data-game="zap-zone">
+                <div class="game-placeholder"></div>
+                <h3>Zap Zone</h3>
+            </div>
+        </section>
+
+        <!-- Game Focus Overlay -->
+        <div id="game-focus" class="game-focus hidden">
+            <div class="game-content">
+                <button id="close-focus">Close</button>
+                <h2 id="game-title"></h2>
+                <div id="game-area">
+                    <!-- Pong Canvas (only shown for Pong) -->
+                    <canvas id="pongCanvas" width="800" height="600" class="hidden"></canvas>
+                    <p id="game-instructions" class="hidden">Use W/S for left paddle, Up/Down for right paddle.</p>
+                    <!-- Placeholder for other games -->
+                    <p id="coming-soon" class="hidden">Coming Soon!</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="/games.js"></script>
+</body>
+</html>
