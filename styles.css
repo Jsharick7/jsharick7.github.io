@@ -205,3 +205,21 @@ footer {
 .hidden {
     display: none;
 }
+
+/* Pong Canvas */
+#pongCanvas {
+    border: 2px solid #ff007a;
+    box-shadow: 0 0 15px #ff007a;
+}
+
+/* Instructions */
+#game-instructions {
+    font-family: 'Orbitron', sans-serif;
+    color: #00d4ff;
+    text-shadow: 0 0 5px #00d4ff;
+}
+
+/* Game Content */
+.game-content {
+    font-family: 'Orbitron', sans-serif;
+}
