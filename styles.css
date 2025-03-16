@@ -1,27 +1,130 @@
+/* Reset and Base Styles */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Arial', sans-serif;
     margin: 0;
     padding: 0;
+    background: linear-gradient(135deg, #1a1a2e, #16213e); /* Dark gradient background */
+    color: #fff;
+    overflow-x: hidden;
+}
+
+/* Hero Header */
+.hero {
+    position: relative;
     text-align: center;
-    background-color: #f0f0f0;
+    padding: 60px 20px;
+    background: linear-gradient(45deg, #ff007a, #00d4ff, #ffcc00); /* Vibrant gradient */
+    background-size: 200% 200%;
+    animation: gradientShift 10s ease infinite; /* Animated gradient */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-header {
-    background-color: #333;
-    color: white;
-    padding: 20px;
+.hero h1 {
+    font-size: 4em;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px #ff007a; /* Neon glow */
+    animation: pulse 2s infinite; /* Subtle pulse effect */
 }
 
-nav a {
-    color: white;
-    margin: 0 10px;
+.tagline {
+    font-size: 1.5em;
+    margin: 10px 0;
+    color: #e0e0e0;
+    text-shadow: 0 0 5px rgba(0, 212, 255, 0.7);
 }
 
+/* Navigation Button */
+nav .btn {
+    display: inline-block;
+    padding: 15px 30px;
+    background: #00d4ff;
+    color: #1a1a2e;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 25px;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 0 15px #00d4ff;
+}
+
+nav .btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px #00d4ff, 0 0 50px #00d4ff;
+}
+
+/* Main Sections */
 main {
-    padding: 20px;
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
 }
 
-/* Game Grid */
+.highlight {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 30px;
+    margin: 20px 0;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(5px); /* Glassmorphism effect */
+    transition: transform 0.3s;
+}
+
+.highlight:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.highlight h2 {
+    font-size: 2em;
+    color: #ffcc00;
+    text-shadow: 0 0 10px #ffcc00;
+}
+
+.highlight p {
+    font-size: 1.2em;
+    color: #d0d0d0;
+}
+
+.btn.secondary {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #ff007a;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 20px;
+    box-shadow: 0 0 10px #ff007a;
+    transition: transform 0.3s;
+}
+
+.btn.secondary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px #ff007a;
+}
+
+/* Footer */
+footer {
+    background: #1a1a2e;
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid #ff007a;
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Animations */
+@keyframes gradientShift {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 100% 100%; }
+    100% { background-position: 0% 0%; }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Game Grid (unchanged from before) */
 .game-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -31,8 +134,8 @@ main {
 }
 
 .game-tile {
-    background-color: #fff;
-    border: 2px solid #333;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 2px solid #ff007a;
     border-radius: 8px;
     padding: 10px;
     cursor: pointer;
@@ -41,61 +144,28 @@ main {
 
 .game-tile:hover {
     transform: scale(1.05);
+    box-shadow: 0 0 15px #ff007a;
 }
 
 .game-placeholder {
     width: 100%;
     height: 120px;
-    background-color: #ccc;
-    border: 1px dashed #666;
+    background: linear-gradient(90deg, #00d4ff, #ffcc00);
+    border: 1px dashed #fff;
     margin-bottom: 10px;
 }
 
-h3 {
+.game-tile h3 {
     margin: 0;
     font-size: 1.2em;
-    color: #333;
+    color: #fff;
+    text-shadow: 0 0 5px #00d4ff;
 }
 
-/* Game Focus Overlay */
+/* Game Focus Overlay (unchanged) */
 .game-focus {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.game-content {
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    max-width: 900px;
-    width: 90%;
-    position: relative;
-}
-
-#close-focus {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-#pongCanvas {
-    border: 1px solid #333;
-}
-
-.hidden {
-    display: none;
-}
+    height: 100
