@@ -1,7 +1,7 @@
 const pongCanvas = document.getElementById('pongCanvas');
 const ctx = pongCanvas.getContext('2d');
 
-// Pong game state (unchanged from last response)
+// Pong game state
 const pongState = {
     ball: { x: 400, y: 300, dx: 5, dy: -5, radius: 10 },
     paddles: { 
@@ -21,7 +21,6 @@ const pongState = {
 };
 
 let animationFrameId;
-
 
 // Draw Pong
 function drawPong() {
@@ -43,13 +42,12 @@ function drawPong() {
         ctx.fillRect(laser.x, laser.y, laser.width, 5);
     });
 
-    // Draw power-up with cooler design
     if (pongState.powerUp) {
         ctx.save();
         ctx.translate(pongState.powerUp.x, pongState.powerUp.y);
-        ctx.rotate(Date.now() / 500); // Spin animation
+        ctx.rotate(Date.now() / 500);
         ctx.fillStyle = pongState.powerUp.type === 'health' ? '#00ff00' : pongState.powerUp.type === 'shield' ? '#00d4ff' : '#ff007a';
-        if (pongState.powerUp.type === 'health') { // Star shape
+        if (pongState.powerUp.type === 'health') {
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
                 ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15, Math.sin((18 + i * 72) * Math.PI / 180) * 15);
@@ -57,7 +55,7 @@ function drawPong() {
             }
             ctx.closePath();
             ctx.fill();
-        } else if (pongState.powerUp.type === 'shield') { // Shield shape
+        } else if (pongState.powerUp.type === 'shield') {
             ctx.beginPath();
             ctx.moveTo(-10, -15);
             ctx.lineTo(10, -15);
@@ -66,7 +64,7 @@ function drawPong() {
             ctx.lineTo(-10, 15);
             ctx.closePath();
             ctx.fill();
-        } else { // Double arrows
+        } else {
             ctx.fillRect(-15, -5, 10, 10);
             ctx.fillRect(5, -5, 10, 10);
         }
@@ -122,9 +120,8 @@ function updatePong() {
         pongState.ball.y >= pongState.paddles.right.y && 
         pongState.ball.y <= pongState.paddles.right.y + pongState.paddles.right.height
     ) {
-        // AI miss chance (1/10 if ball has high vertical speed)
         if (Math.abs(pongState.ball.dy) > 7 && Math.random() < 0.1) {
-            // Miss: don’t reflect the ball
+            // AI misses
         } else {
             pongState.ball.dx *= -1;
         }
@@ -142,10 +139,9 @@ function updatePong() {
         pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
     }
 
-    // AI shooting logic
     if (now > pongState.aiNextShot && pongState.paddles.right.health > 0) {
         shootLaser('right');
-        pongState.aiNextShot = now + Math.random() * 3000 + 2000; // Next shot in 2-5 seconds
+        pongState.aiNextShot = now + Math.random() * 3000 + 2000;
     }
 
     pongState.lasers = pongState.lasers.filter(laser => laser.x >= 0 && laser.x <= pongState.width);
@@ -167,7 +163,7 @@ function updatePong() {
             laser.y >= pongState.paddles.left.y && 
             laser.y <= pongState.paddles.left.y + pongState.paddles.left.height && 
             pongState.paddles.left.health > 0) {
-            pongState.paddles.left.health -= 1; // AI lasers don’t get double power
+            pongState.paddles.left.health -= 1;
             if (pongState.paddles.left.health <= 0) {
                 pongState.roundPaused = true;
                 pongState.roundStartTime = now;
@@ -176,7 +172,6 @@ function updatePong() {
         }
     });
 
-    // Power-up collision with lasers
     if (pongState.powerUp) {
         pongState.lasers.forEach(laser => {
             if (laser.from === 'left' && 
@@ -195,9 +190,7 @@ function updatePong() {
     }
 
     drawPong();
-    if (!gameFocus.classList.contains('hidden')) {
-        animationFrameId = requestAnimationFrame(updatePong);
-    }
+    animationFrameId = requestAnimationFrame(updatePong);
 }
 
 function resetRound() {
@@ -241,7 +234,7 @@ function applyPowerUp() {
 function shootLaser(from) {
     const now = Date.now();
     const paddle = pongState.paddles[from];
-    if (now - paddle.lastShot < 1000) return; // 1 shot per second limit
+    if (now - paddle.lastShot < 1000) return;
     const laser = {
         x: from === 'left' ? 30 : pongState.width - 30,
         y: paddle.y + paddle.height / 2,
@@ -256,7 +249,6 @@ function shootLaser(from) {
 
 // Controls (Keyboard + Touch)
 document.addEventListener('keydown', (e) => {
-    if (gameFocus.classList.contains('hidden')) return;
     const paddleSpeed = 20;
     if (e.key === 'w' && pongState.paddles.left.y > 0) {
         pongState.paddles.left.y -= paddleSpeed;
@@ -269,13 +261,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 pongCanvas.addEventListener('touchstart', (e) => {
-    if (gameFocus.classList.contains('hidden')) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = pongCanvas.getBoundingClientRect();
     const x = (touch.clientX - rect.left) * (pongState.width / rect.width);
     const y = (touch.clientY - rect.top) * (pongState.height / rect.height);
-
     if (x < pongState.width / 2) {
         pongState.touchY = y - pongState.paddles.left.height / 2;
     } else {
@@ -284,7 +274,7 @@ pongCanvas.addEventListener('touchstart', (e) => {
 });
 
 pongCanvas.addEventListener('touchmove', (e) => {
-    if (gameFocus.classList.contains('hidden') || pongState.touchY === null) return;
+    if (pongState.touchY === null) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = pongCanvas.getBoundingClientRect();
@@ -293,35 +283,10 @@ pongCanvas.addEventListener('touchmove', (e) => {
 });
 
 pongCanvas.addEventListener('touchend', (e) => {
-    if (gameFocus.classList.contains('hidden')) return;
     e.preventDefault();
     pongState.touchY = null;
 });
 
-// Handle game tile clicks
-gameTiles.forEach(tile => {
-    tile.addEventListener('click', () => {
-        const game = tile.dataset.game;
-        gameTitle.textContent = tile.querySelector('h3').textContent;
-        gameFocus.classList.remove('hidden');
-
-        pongCanvas.classList.add('hidden');
-        gameInstructions.classList.add('hidden');
-        comingSoon.classList.add('hidden');
-
-        if (game === 'pong') {
-            pongCanvas.classList.remove('hidden');
-            gameInstructions.classList.remove('hidden');
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
-            resetRound();
-            updatePong();
-        } else {
-            comingSoon.classList.remove('hidden');
-        }
-    });
-});
-
-closeFocus.addEventListener('click', () => {
-    gameFocus.classList.add('hidden');
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-});
+// Start the game
+resetRound();
+updatePong();
