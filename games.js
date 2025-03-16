@@ -5,7 +5,7 @@ const pongCanvas = document.getElementById('pongCanvas');
 const gameInstructions = document.getElementById('game-instructions');
 const comingSoon = document.getElementById('coming-soon');
 const closeFocus = document.getElementById('close-focus');
-const backendUrl = 'https://your-game-backend.herokuapp.com'; // Update with your Heroku URL
+const backendUrl = 'http://localhost:3000';  // Update with your Heroku URL
 
 // Pong game logic
 function drawPong(state) {
