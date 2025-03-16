@@ -5,7 +5,7 @@ const ctx = pongCanvas.getContext('2d');
 const pongState = {
     ball: { x: 400, y: 300, dx: 5, dy: -5, radius: 10 },
     paddles: { 
-        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 }, 
+        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0, dy: 0 }, 
         right: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 } 
     },
     lasers: [],
@@ -17,8 +17,25 @@ const pongState = {
     roundStartTime: Date.now(),
     lastPowerUpTime: 0,
     touchY: null,
-    aiNextShot: Date.now() + Math.random() * 3000 + 2000
+    aiNextShot: Date.now() + Math.random() * 3000 + 2000,
+    gameOver: false,
+    winner: null
 };
+
+// Simple SFX (using Web Audio API for blippy electronic sounds)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(frequency, duration, type = 'square') {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gainNode.gain.value = 0.1;
+    oscillator.start();
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    oscillator.stop(audioCtx.currentTime + duration);
+}
 
 let animationFrameId;
 
@@ -46,7 +63,7 @@ function drawPong() {
         ctx.save();
         ctx.translate(pongState.powerUp.x, pongState.powerUp.y);
         ctx.rotate(Date.now() / 500);
-        ctx.fillStyle = pongState.powerUp.type === 'health' ? '#00ff00' : pongState.powerUp.type === 'shield' ? '#00d4ff' : '#ff007a';
+        ctx.fillStyle = pongState.powerUp.type === 'health' ? '#00ff00' : pongState.powerUp.type === 'shield' ? '#00d4ff' : pongState.powerUp.type === 'double' ? '#ff007a' : '#ffcc00';
         if (pongState.powerUp.type === 'health') {
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
@@ -64,9 +81,11 @@ function drawPong() {
             ctx.lineTo(-10, 15);
             ctx.closePath();
             ctx.fill();
-        } else {
+        } else if (pongState.powerUp.type === 'double') {
             ctx.fillRect(-15, -5, 10, 10);
             ctx.fillRect(5, -5, 10, 10);
+        } else if (pongState.powerUp.type === 'wide') {
+            ctx.fillRect(-15, -10, 30, 20); // Rectangular paddle shape
         }
         ctx.restore();
     }
@@ -75,18 +94,26 @@ function drawPong() {
     ctx.fillStyle = '#fff';
     ctx.fillText('Player', 10, pongState.height - 40);
     ctx.fillText('AI', pongState.width - 60, pongState.height - 40);
-    ctx.fillStyle = 'linear-gradient(90deg, #00d4ff, #00ffcc)';
     ctx.fillRect(10, pongState.height - 30, (pongState.paddles.left.health / pongState.paddles.left.maxHealth) * 100, 20);
-    ctx.fillStyle = 'linear-gradient(90deg, #ff007a, #ffcc00)';
     ctx.fillRect(pongState.width - 110, pongState.height - 30, (pongState.paddles.right.health / pongState.paddles.right.maxHealth) * 100, 20);
-
-    ctx.fillStyle = '#fff';
     ctx.fillText(pongState.scores.left, 100, 50);
     ctx.fillText(pongState.scores.right, pongState.width - 100, 50);
+
+    if (pongState.gameOver) {
+        ctx.font = '40px Orbitron';
+        ctx.fillStyle = pongState.winner === 'left' ? '#00d4ff' : '#ff007a';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${pongState.winner === 'left' ? 'Player' : 'AI'} Wins!`, pongState.width / 2, pongState.height / 2);
+    }
 }
 
 // Update Pong logic
 function updatePong() {
+    if (pongState.gameOver) {
+        drawPong();
+        return;
+    }
+
     if (pongState.roundPaused) {
         if (Date.now() - pongState.roundStartTime > 2000) {
             pongState.roundPaused = false;
@@ -99,6 +126,10 @@ function updatePong() {
 
     const now = Date.now();
     const roundTime = (now - pongState.roundStartTime) / 1000;
+
+    // Smooth paddle movement
+    pongState.paddles.left.y += pongState.paddles.left.dy;
+    pongState.paddles.left.y = Math.max(0, Math.min(pongState.height - pongState.paddles.left.height, pongState.paddles.left.y));
 
     pongState.ball.x += pongState.ball.dx;
     pongState.ball.y += pongState.ball.dy;
@@ -129,8 +160,14 @@ function updatePong() {
 
     if (pongState.ball.x <= 0 || pongState.ball.x >= pongState.width) {
         pongState.scores[pongState.ball.x <= 0 ? 'right' : 'left']++;
-        pongState.roundPaused = true;
-        pongState.roundStartTime = now;
+        if (pongState.scores.left >= 10 || pongState.scores.right >= 10) {
+            pongState.gameOver = true;
+            pongState.winner = pongState.scores.left >= 10 ? 'left' : 'right';
+            playSound(800, 0.5); // Victory sound
+        } else {
+            pongState.roundPaused = true;
+            pongState.roundStartTime = now;
+        }
     }
 
     if (pongState.paddles.right.health > 0) {
@@ -201,13 +238,12 @@ function resetRound() {
     pongState.paddles.left.health = pongState.paddles.left.maxHealth;
     pongState.paddles.right.health = pongState.paddles.right.maxHealth;
     pongState.lasers = [];
-    pongState.powerUp = null;
     pongState.roundStartTime = Date.now();
     pongState.aiNextShot = Date.now() + Math.random() * 3000 + 2000;
 }
 
 function spawnPowerUp() {
-    const types = ['health', 'shield', 'double'];
+    const types = ['health', 'shield', 'double', 'wide'];
     pongState.powerUp = {
         x: Math.random() * (pongState.width - 60) + 30,
         y: Math.random() * (pongState.height - 60) + 30,
@@ -217,9 +253,11 @@ function spawnPowerUp() {
 }
 
 function applyPowerUp() {
+    playSound(600, 0.2); // Power-up sound
     switch (pongState.powerUp.type) {
         case 'health':
             pongState.paddles.left.health = Math.min(pongState.paddles.left.maxHealth, pongState.paddles.left.health + 3);
+            pongState.powerUp = null;
             break;
         case 'shield':
             setTimeout(() => pongState.powerUp = null, 7000);
@@ -227,8 +265,14 @@ function applyPowerUp() {
         case 'double':
             setTimeout(() => pongState.powerUp = null, 7000);
             break;
+        case 'wide':
+            pongState.paddles.left.height = 200;
+            setTimeout(() => {
+                pongState.paddles.left.height = 100;
+                if (pongState.powerUp && pongState.powerUp.type === 'wide') pongState.powerUp = null;
+            }, 20000);
+            break;
     }
-    if (pongState.powerUp.type !== 'shield' && pongState.powerUp.type !== 'double') pongState.powerUp = null;
 }
 
 function shootLaser(from) {
@@ -245,22 +289,39 @@ function shootLaser(from) {
     };
     pongState.lasers.push(laser);
     paddle.lastShot = now;
+    playSound(400, 0.1); // Laser sound
 }
 
 // Controls (Keyboard + Touch)
+let keys = { w: false, s: false };
 document.addEventListener('keydown', (e) => {
-    const paddleSpeed = 20;
-    if (e.key === 'w' && pongState.paddles.left.y > 0) {
-        pongState.paddles.left.y -= paddleSpeed;
-    } else if (e.key === 's' && pongState.paddles.left.y < pongState.height - pongState.paddles.left.height) {
-        pongState.paddles.left.y += paddleSpeed;
+    if (pongState.gameOver) return;
+    if (e.key === 'w') {
+        keys.w = true;
+        pongState.paddles.left.dy = -10;
+        playSound(200, 0.05); // Paddle move sound
+    } else if (e.key === 's') {
+        keys.s = true;
+        pongState.paddles.left.dy = 10;
+        playSound(200, 0.05);
     } else if (e.key === ' ') {
         e.preventDefault();
         shootLaser('left');
     }
 });
 
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'w') {
+        keys.w = false;
+        if (!keys.s) pongState.paddles.left.dy = 0;
+    } else if (e.key === 's') {
+        keys.s = false;
+        if (!keys.w) pongState.paddles.left.dy = 0;
+    }
+});
+
 pongCanvas.addEventListener('touchstart', (e) => {
+    if (pongState.gameOver) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = pongCanvas.getBoundingClientRect();
@@ -274,15 +335,17 @@ pongCanvas.addEventListener('touchstart', (e) => {
 });
 
 pongCanvas.addEventListener('touchmove', (e) => {
-    if (pongState.touchY === null) return;
+    if (pongState.gameOver || pongState.touchY === null) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = pongCanvas.getBoundingClientRect();
     const y = (touch.clientY - rect.top) * (pongState.height / rect.height);
     pongState.paddles.left.y = Math.max(0, Math.min(pongState.height - pongState.paddles.left.height, y - pongState.paddles.left.height / 2));
+    playSound(200, 0.05); // Paddle move sound on touch
 });
 
 pongCanvas.addEventListener('touchend', (e) => {
+    if (pongState.gameOver) return;
     e.preventDefault();
     pongState.touchY = null;
 });
