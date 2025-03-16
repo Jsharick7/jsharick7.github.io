@@ -5,42 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Games - AI Game Hub</title>
     <link rel="stylesheet" href="/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet"> <!-- Space font -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header>
         <h1>Games</h1>
-        <nav><a href="/index.html">Back to Home</a></nav>
+        <nav><a href="/index.html" class="btn">Back to Home</a></nav>
     </header>
     <main>
         <section id="game-grid" class="game-grid">
-            <div class="game-tile" data-game="pong">
+            <a href="/pong.html" class="game-tile">
                 <div class="game-placeholder"></div>
-                <h3>Neon Pong</h3> <!-- Updated name for twist -->
-            </div>
-            <div class="game-tile" data-game="space-blaster">
+                <h3>Neon Pong</h3>
+            </a>
+            <!-- Repeat for 19 more games, placeholder examples below -->
+            <a href="/snake.html" class="game-tile">
                 <div class="game-placeholder"></div>
-                <h3>Space Blaster</h3>
-            </div>
-            <!-- ... Rest of the 20 game tiles unchanged ... -->
-            <div class="game-tile" data-game="zap-zone">
+                <h3>Neon Snake</h3>
+            </a>
+            <!-- ... Add 18 more similar <a> tags with href="/game-name.html" ... -->
+            <a href="/zap-zone.html" class="game-tile">
                 <div class="game-placeholder"></div>
                 <h3>Zap Zone</h3>
-            </div>
+            </a>
         </section>
-
-        <div id="game-focus" class="game-focus hidden">
-            <div class="game-content">
-                <button id="close-focus">Close</button>
-                <h2 id="game-title"></h2>
-                <div id="game-area">
-                    <canvas id="pongCanvas" width="800" height="600" class="hidden"></canvas>
-                    <p id="game-instructions" class="hidden">W/S to move, Space to shoot lasers!</p>
-                    <p id="coming-soon" class="hidden">Coming Soon!</p>
-                </div>
-            </div>
-        </div>
     </main>
-    <script src="/games.js"></script>
 </body>
 </html>

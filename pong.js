@@ -1,19 +1,12 @@
-const gameTiles = document.querySelectorAll('.game-tile');
-const gameFocus = document.getElementById('game-focus');
-const gameTitle = document.getElementById('game-title');
 const pongCanvas = document.getElementById('pongCanvas');
-const gameInstructions = document.getElementById('game-instructions');
-const comingSoon = document.getElementById('coming-soon');
-const closeFocus = document.getElementById('close-focus');
-
 const ctx = pongCanvas.getContext('2d');
 
-// Pong game state
+// Pong game state (unchanged from last response)
 const pongState = {
     ball: { x: 400, y: 300, dx: 5, dy: -5, radius: 10 },
     paddles: { 
-        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5 }, 
-        right: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5 } 
+        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 }, 
+        right: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 } 
     },
     lasers: [],
     powerUp: null,
@@ -22,53 +15,73 @@ const pongState = {
     height: 600,
     roundPaused: false,
     roundStartTime: Date.now(),
-    lastPowerUpTime: 0
+    lastPowerUpTime: 0,
+    touchY: null,
+    aiNextShot: Date.now() + Math.random() * 3000 + 2000
 };
 
 let animationFrameId;
 
+
 // Draw Pong
 function drawPong() {
-    ctx.fillStyle = '#1a1a2e'; // Space-like dark background
+    ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, pongState.width, pongState.height);
 
-    // Draw paddles (if health > 0)
     ctx.fillStyle = pongState.paddles.left.health > 0 ? '#00d4ff' : 'rgba(0, 212, 255, 0.2)';
     ctx.fillRect(10, pongState.paddles.left.y, pongState.paddles.left.width, pongState.paddles.left.height);
     ctx.fillStyle = pongState.paddles.right.health > 0 ? '#ff007a' : 'rgba(255, 0, 122, 0.2)';
     ctx.fillRect(pongState.width - 30, pongState.paddles.right.y, pongState.paddles.right.width, pongState.paddles.right.height);
 
-    // Draw ball
     ctx.fillStyle = '#ffcc00';
     ctx.beginPath();
     ctx.arc(pongState.ball.x, pongState.ball.y, pongState.ball.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw lasers
     pongState.lasers.forEach(laser => {
-        ctx.fillStyle = laser.double ? '#ffcc00' : '#00ffcc'; // Neon cyan or yellow for double
+        ctx.fillStyle = laser.double ? '#ffcc00' : laser.from === 'left' ? '#00ffcc' : '#ff007a';
         ctx.fillRect(laser.x, laser.y, laser.width, 5);
     });
 
-    // Draw power-up
+    // Draw power-up with cooler design
     if (pongState.powerUp) {
+        ctx.save();
+        ctx.translate(pongState.powerUp.x, pongState.powerUp.y);
+        ctx.rotate(Date.now() / 500); // Spin animation
         ctx.fillStyle = pongState.powerUp.type === 'health' ? '#00ff00' : pongState.powerUp.type === 'shield' ? '#00d4ff' : '#ff007a';
-        ctx.beginPath();
-        ctx.arc(pongState.powerUp.x, pongState.powerUp.y, 15, 0, Math.PI * 2);
-        ctx.fill();
+        if (pongState.powerUp.type === 'health') { // Star shape
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15, Math.sin((18 + i * 72) * Math.PI / 180) * 15);
+                ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 7, Math.sin((54 + i * 72) * Math.PI / 180) * 7);
+            }
+            ctx.closePath();
+            ctx.fill();
+        } else if (pongState.powerUp.type === 'shield') { // Shield shape
+            ctx.beginPath();
+            ctx.moveTo(-10, -15);
+            ctx.lineTo(10, -15);
+            ctx.lineTo(15, 0);
+            ctx.lineTo(10, 15);
+            ctx.lineTo(-10, 15);
+            ctx.closePath();
+            ctx.fill();
+        } else { // Double arrows
+            ctx.fillRect(-15, -5, 10, 10);
+            ctx.fillRect(5, -5, 10, 10);
+        }
+        ctx.restore();
     }
 
-    // Draw health bars
     ctx.font = '20px Orbitron';
     ctx.fillStyle = '#fff';
     ctx.fillText('Player', 10, pongState.height - 40);
     ctx.fillText('AI', pongState.width - 60, pongState.height - 40);
-    ctx.fillStyle = 'linear-gradient(90deg, #00d4ff, #00ffcc)'; // Cyan gradient
+    ctx.fillStyle = 'linear-gradient(90deg, #00d4ff, #00ffcc)';
     ctx.fillRect(10, pongState.height - 30, (pongState.paddles.left.health / pongState.paddles.left.maxHealth) * 100, 20);
-    ctx.fillStyle = 'linear-gradient(90deg, #ff007a, #ffcc00)'; // Pink-yellow gradient
+    ctx.fillStyle = 'linear-gradient(90deg, #ff007a, #ffcc00)';
     ctx.fillRect(pongState.width - 110, pongState.height - 30, (pongState.paddles.right.health / pongState.paddles.right.maxHealth) * 100, 20);
 
-    // Draw scores
     ctx.fillStyle = '#fff';
     ctx.fillText(pongState.scores.left, 100, 50);
     ctx.fillText(pongState.scores.right, pongState.width - 100, 50);
@@ -77,7 +90,7 @@ function drawPong() {
 // Update Pong logic
 function updatePong() {
     if (pongState.roundPaused) {
-        if (Date.now() - pongState.roundStartTime > 2000) { // 2-second pause
+        if (Date.now() - pongState.roundStartTime > 2000) {
             pongState.roundPaused = false;
             resetRound();
         }
@@ -87,18 +100,15 @@ function updatePong() {
     }
 
     const now = Date.now();
-    const roundTime = (now - pongState.roundStartTime) / 1000; // Seconds
+    const roundTime = (now - pongState.roundStartTime) / 1000;
 
-    // Ball movement
     pongState.ball.x += pongState.ball.dx;
     pongState.ball.y += pongState.ball.dy;
 
-    // Ball collision with top/bottom
     if (pongState.ball.y - pongState.ball.radius <= 0 || pongState.ball.y + pongState.ball.radius >= pongState.height) {
         pongState.ball.dy *= -1;
     }
 
-    // Ball collision with paddles
     if (
         pongState.paddles.left.health > 0 &&
         pongState.ball.x - pongState.ball.radius <= 30 && 
@@ -112,28 +122,37 @@ function updatePong() {
         pongState.ball.y >= pongState.paddles.right.y && 
         pongState.ball.y <= pongState.paddles.right.y + pongState.paddles.right.height
     ) {
-        pongState.ball.dx *= -1;
+        // AI miss chance (1/10 if ball has high vertical speed)
+        if (Math.abs(pongState.ball.dy) > 7 && Math.random() < 0.1) {
+            // Miss: don’t reflect the ball
+        } else {
+            pongState.ball.dx *= -1;
+        }
     }
 
-    // Ball out of bounds
     if (pongState.ball.x <= 0 || pongState.ball.x >= pongState.width) {
         pongState.scores[pongState.ball.x <= 0 ? 'right' : 'left']++;
         pongState.roundPaused = true;
         pongState.roundStartTime = now;
     }
 
-    // AI movement
     if (pongState.paddles.right.health > 0) {
         const aiTarget = pongState.ball.y - pongState.paddles.right.height / 2;
-        pongState.paddles.right.y += (aiTarget - pongState.paddles.right.y) * 0.1; // Smooth AI tracking
+        pongState.paddles.right.y += (aiTarget - pongState.paddles.right.y) * 0.1;
         pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
     }
 
-    // Laser movement and collision
+    // AI shooting logic
+    if (now > pongState.aiNextShot && pongState.paddles.right.health > 0) {
+        shootLaser('right');
+        pongState.aiNextShot = now + Math.random() * 3000 + 2000; // Next shot in 2-5 seconds
+    }
+
     pongState.lasers = pongState.lasers.filter(laser => laser.x >= 0 && laser.x <= pongState.width);
     pongState.lasers.forEach(laser => {
         laser.x += laser.dx;
-        if (laser.x >= pongState.width - 30 && 
+        if (laser.from === 'left' && 
+            laser.x >= pongState.width - 30 && 
             laser.y >= pongState.paddles.right.y && 
             laser.y <= pongState.paddles.right.y + pongState.paddles.right.height && 
             pongState.paddles.right.health > 0) {
@@ -143,19 +162,36 @@ function updatePong() {
                 pongState.roundStartTime = now;
             }
             pongState.lasers = pongState.lasers.filter(l => l !== laser);
+        } else if (laser.from === 'right' && 
+            laser.x <= 30 && 
+            laser.y >= pongState.paddles.left.y && 
+            laser.y <= pongState.paddles.left.y + pongState.paddles.left.height && 
+            pongState.paddles.left.health > 0) {
+            pongState.paddles.left.health -= 1; // AI lasers don’t get double power
+            if (pongState.paddles.left.health <= 0) {
+                pongState.roundPaused = true;
+                pongState.roundStartTime = now;
+            }
+            pongState.lasers = pongState.lasers.filter(l => l !== laser);
         }
     });
 
-    // Power-up logic
+    // Power-up collision with lasers
+    if (pongState.powerUp) {
+        pongState.lasers.forEach(laser => {
+            if (laser.from === 'left' && 
+                laser.x >= pongState.powerUp.x - 15 && 
+                laser.x <= pongState.powerUp.x + 15 && 
+                laser.y >= pongState.powerUp.y - 15 && 
+                laser.y <= pongState.powerUp.y + 15) {
+                applyPowerUp();
+                pongState.lasers = pongState.lasers.filter(l => l !== laser);
+            }
+        });
+    }
+
     if (roundTime > 10 && !pongState.powerUp && now - pongState.lastPowerUpTime > 20000) {
         spawnPowerUp();
-    }
-    if (pongState.powerUp && 
-        pongState.ball.x >= pongState.powerUp.x - 15 && 
-        pongState.ball.x <= pongState.powerUp.x + 15 && 
-        pongState.ball.y >= pongState.powerUp.y - 15 && 
-        pongState.ball.y <= pongState.powerUp.y + 15) {
-        applyPowerUp();
     }
 
     drawPong();
@@ -174,6 +210,7 @@ function resetRound() {
     pongState.lasers = [];
     pongState.powerUp = null;
     pongState.roundStartTime = Date.now();
+    pongState.aiNextShot = Date.now() + Math.random() * 3000 + 2000;
 }
 
 function spawnPowerUp() {
@@ -192,29 +229,32 @@ function applyPowerUp() {
             pongState.paddles.left.health = Math.min(pongState.paddles.left.maxHealth, pongState.paddles.left.health + 3);
             break;
         case 'shield':
-            // Shield effect (visual only for now)
             setTimeout(() => pongState.powerUp = null, 7000);
             break;
         case 'double':
-            // Double lasers handled in shootLaser
             setTimeout(() => pongState.powerUp = null, 7000);
             break;
     }
     if (pongState.powerUp.type !== 'shield' && pongState.powerUp.type !== 'double') pongState.powerUp = null;
 }
 
-function shootLaser() {
+function shootLaser(from) {
+    const now = Date.now();
+    const paddle = pongState.paddles[from];
+    if (now - paddle.lastShot < 1000) return; // 1 shot per second limit
     const laser = {
-        x: 30,
-        y: pongState.paddles.left.y + pongState.paddles.left.height / 2,
+        x: from === 'left' ? 30 : pongState.width - 30,
+        y: paddle.y + paddle.height / 2,
         width: 20,
-        dx: 10,
-        double: pongState.powerUp && pongState.powerUp.type === 'double'
+        dx: from === 'left' ? 10 : -10,
+        double: from === 'left' && pongState.powerUp && pongState.powerUp.type === 'double',
+        from: from
     };
     pongState.lasers.push(laser);
+    paddle.lastShot = now;
 }
 
-// Controls
+// Controls (Keyboard + Touch)
 document.addEventListener('keydown', (e) => {
     if (gameFocus.classList.contains('hidden')) return;
     const paddleSpeed = 20;
@@ -223,8 +263,39 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key === 's' && pongState.paddles.left.y < pongState.height - pongState.paddles.left.height) {
         pongState.paddles.left.y += paddleSpeed;
     } else if (e.key === ' ') {
-        shootLaser();
+        e.preventDefault();
+        shootLaser('left');
     }
+});
+
+pongCanvas.addEventListener('touchstart', (e) => {
+    if (gameFocus.classList.contains('hidden')) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = pongCanvas.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (pongState.width / rect.width);
+    const y = (touch.clientY - rect.top) * (pongState.height / rect.height);
+
+    if (x < pongState.width / 2) {
+        pongState.touchY = y - pongState.paddles.left.height / 2;
+    } else {
+        shootLaser('left');
+    }
+});
+
+pongCanvas.addEventListener('touchmove', (e) => {
+    if (gameFocus.classList.contains('hidden') || pongState.touchY === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = pongCanvas.getBoundingClientRect();
+    const y = (touch.clientY - rect.top) * (pongState.height / rect.height);
+    pongState.paddles.left.y = Math.max(0, Math.min(pongState.height - pongState.paddles.left.height, y - pongState.paddles.left.height / 2));
+});
+
+pongCanvas.addEventListener('touchend', (e) => {
+    if (gameFocus.classList.contains('hidden')) return;
+    e.preventDefault();
+    pongState.touchY = null;
 });
 
 // Handle game tile clicks
@@ -250,7 +321,6 @@ gameTiles.forEach(tile => {
     });
 });
 
-// Close focus view
 closeFocus.addEventListener('click', () => {
     gameFocus.classList.add('hidden');
     if (animationFrameId) cancelAnimationFrame(animationFrameId);

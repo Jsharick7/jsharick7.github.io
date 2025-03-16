@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Game Hub</title>
+    <title>Neon Pong - AI Game Hub</title>
     <link rel="stylesheet" href="/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header>
-        <h1>AI Game Hub</h1>
-        <nav><a href="/games.html" class="btn">Explore Games</a></nav>
+        <h1>Neon Pong</h1>
+        <nav><a href="/games.html" class="btn">Back to Games</a></nav>
     </header>
     <main>
-        <section class="hero">
-            <h1>Cybernetic Challenges Await</h1>
-            <p class="tagline">Engage in battles of code and reflex.</p>
+        <section class="game-container">
+            <canvas id="pongCanvas" width="800" height="600"></canvas>
+            <p id="game-instructions">Swipe left side to move, tap right side to shoot!</p>
         </section>
     </main>
+    <script src="/pong.js"></script>
 </body>
 </html>

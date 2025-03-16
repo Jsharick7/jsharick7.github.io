@@ -1,225 +1,152 @@
-/* Reset and Base Styles */
-body {
-    font-family: 'Arial', sans-serif;
+* {
     margin: 0;
     padding: 0;
-    background: linear-gradient(135deg, #1a1a2e, #16213e); /* Dark gradient background */
-    color: #fff;
-    overflow-x: hidden;
+    box-sizing: border-box;
 }
 
-/* Hero Header */
-.hero {
-    position: relative;
+body {
+    font-family: 'Orbitron', sans-serif;
+    background-color: #0d0d1a; /* Deep black-blue */
+    color: #e6e6e6; /* Light gray for text */
+    line-height: 1.6;
+}
+
+header {
+    background: linear-gradient(90deg, #0d0d1a, #1a1a2e);
+    padding: 1rem;
     text-align: center;
-    padding: 60px 20px;
-    background: linear-gradient(45deg, #ff007a, #00d4ff, #ffcc00); /* Vibrant gradient */
-    background-size: 200% 200%;
-    animation: gradientShift 10s ease infinite; /* Animated gradient */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-bottom: 2px solid #00d4ff; /* Neon cyan accent */
 }
 
-.hero h1 {
-    font-size: 4em;
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px #ff007a; /* Neon glow */
-    animation: pulse 2s infinite; /* Subtle pulse effect */
+h1 {
+    font-size: 2.5rem;
+    color: #00d4ff; /* Neon cyan */
+    text-shadow: 0 0 5px rgba(0, 212, 255, 0.5);
+}
+
+nav {
+    margin-top: 0.5rem;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: 2px solid #ff007a; /* Neon magenta */
+    color: #ff007a;
+    text-decoration: none;
+    font-weight: 700;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    background: #ff007a;
+    color: #0d0d1a;
+    box-shadow: 0 0 10px rgba(255, 0, 122, 0.7);
+}
+
+.hero {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: radial-gradient(circle, #1a1a2e, #0d0d1a);
 }
 
 .tagline {
-    font-size: 1.5em;
-    margin: 10px 0;
-    color: #e0e0e0;
-    text-shadow: 0 0 5px rgba(0, 212, 255, 0.7);
+    font-size: 1.2rem;
+    color: #00ffcc; /* Neon teal */
+    text-shadow: 0 0 3px rgba(0, 255, 204, 0.5);
 }
 
-/* Navigation Button */
-nav .btn {
-    display: inline-block;
-    padding: 15px 30px;
-    background: #00d4ff;
-    color: #1a1a2e;
-    text-decoration: none;
-    font-weight: bold;
-    border-radius: 25px;
-    transition: transform 0.3s, box-shadow 0.3s;
-    box-shadow: 0 0 15px #00d4ff;
-}
-
-nav .btn:hover {
-    transform: scale(1.1);
-    box-shadow: 0 0 25px #00d4ff, 0 0 50px #00d4ff;
-}
-
-/* Main Sections */
-main {
-    max-width: 1200px;
-    margin: 40px auto;
-    padding: 0 20px;
-}
-
-.highlight {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 30px;
-    margin: 20px 0;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(5px); /* Glassmorphism effect */
-    transition: transform 0.3s;
-}
-
-.highlight:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-}
-
-.highlight h2 {
-    font-size: 2em;
-    color: #ffcc00;
-    text-shadow: 0 0 10px #ffcc00;
-}
-
-.highlight p {
-    font-size: 1.2em;
-    color: #d0d0d0;
-}
-
-.btn.secondary {
-    display: inline-block;
-    padding: 10px 20px;
-    background: #ff007a;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 20px;
-    box-shadow: 0 0 10px #ff007a;
-    transition: transform 0.3s;
-}
-
-.btn.secondary:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px #ff007a;
-}
-
-/* Footer */
-footer {
-    background: #1a1a2e;
-    padding: 20px;
-    text-align: center;
-    border-top: 1px solid #ff007a;
-    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.5);
-}
-
-/* Animations */
-@keyframes gradientShift {
-    0% { background-position: 0% 0%; }
-    50% { background-position: 100% 100%; }
-    100% { background-position: 0% 0%; }
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-/* Game Grid (unchanged from before) */
 .game-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    max-width: 1200px;
-    margin: 0 auto;
+    gap: 1rem;
+    padding: 2rem;
 }
 
 .game-tile {
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 2px solid #ff007a;
-    border-radius: 8px;
-    padding: 10px;
-    cursor: pointer;
-    transition: transform 0.2s;
+    background: #1a1a2e; /* Darker tile */
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid #00d4ff;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    text-decoration: none;
+    color: #e6e6e6;
 }
 
 .game-tile:hover {
     transform: scale(1.05);
-    box-shadow: 0 0 15px #ff007a;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
 }
 
 .game-placeholder {
     width: 100%;
     height: 120px;
-    background: linear-gradient(90deg, #00d4ff, #ffcc00);
-    border: 1px dashed #fff;
-    margin-bottom: 10px;
+    background: linear-gradient(45deg, #00d4ff, #ff007a);
+    opacity: 0.2;
+    margin-bottom: 0.5rem;
 }
 
-.game-tile h3 {
-    margin: 0;
-    font-size: 1.2em;
-    color: #fff;
-    text-shadow: 0 0 5px #00d4ff;
+h3 {
+    font-size: 1.2rem;
+    color: #ff007a; /* Neon magenta */
 }
 
-/* Game Focus Overlay (unchanged) */
-.game-focus {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
+.game-container {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    z-index: 1000;
-}
-
-.game-content {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 20px;
-    border-radius: 8px;
-    max-width: 900px;
-    width: 90%;
-    position: relative;
-    backdrop-filter: blur(5px);
-}
-
-#close-focus {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
+    padding: 2rem;
+    background: #0d0d1a;
 }
 
 #pongCanvas {
-    border: 1px solid #ff007a;
+    border: 1px solid #00d4ff;
+    background: #1a1a2e;
 }
 
-.hidden {
-    display: none;
-}
-
-/* Pong Canvas */
-#pongCanvas {
-    border: 2px solid #ff007a;
-    box-shadow: 0 0 15px #ff007a;
-}
-
-/* Instructions */
 #game-instructions {
-    font-family: 'Orbitron', sans-serif;
-    color: #00d4ff;
-    text-shadow: 0 0 5px #00d4ff;
+    margin-top: 1rem;
+    font-size: 1rem;
+    color: #00ffcc;
+    text-shadow: 0 0 3px rgba(0, 255, 204, 0.5);
 }
 
-/* Game Content */
-.game-content {
-    font-family: 'Orbitron', sans-serif;
+/* Mobile Adjustments */
+@media (max-width: 800px) {
+    #pongCanvas {
+        width: 100%;
+        height: auto;
+        max-width: 800px;
+        max-height: 600px;
+        aspect-ratio: 4 / 3;
+    }
+
+    .game-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .game-tile {
+        padding: 0.5rem;
+    }
+
+    .game-placeholder {
+        height: 90px;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    .tagline {
+        font-size: 1rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+    }
+
+    .game-container {
+        padding: 1rem;
+    }
 }
