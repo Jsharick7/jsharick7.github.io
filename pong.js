@@ -9,8 +9,20 @@ const shootButton = document.getElementById('shoot-button');
 const pongState = {
     ball: { x: 350, y: 300, dx: 5, dy: -5, radius: 10 },
     paddles: { 
-        left: { x: 55, y: 300, width: 20, height: 100, health: 15, maxHealth: 15, lastShot: 0, dy: 0, shield: null, uncontactable: 0 }, 
-        right: { x: 625, y: 300, width: 20, height: 100, health: 15, maxHealth: 15, lastShot: 0, shield: null, uncontactable: Infinity } 
+        left: { x: 55, y: 300, width: 20, height: 90, health: 15, maxHealth: 15, lastShot: 0, dy: 0, shield: null, uncontactable: 0 },
+        right: { 
+            x: 625, 
+            y: 300, 
+            width: 20, 
+            height: 90, 
+            health: 15, 
+            maxHealth: 15, 
+            lastShot: 0, 
+            shield: null, 
+            uncontactable: Infinity, 
+            lastTaskChange: 0, 
+            currentTask: 'ball' // 'ball' or 'player'
+        }
     },
     lasers: [],
     powerUp: null,
@@ -57,8 +69,8 @@ function initBricks() {
     for (let i = 0; i < 10; i++) {
         pongState.bricks.left.push({ x: 30, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 });
         pongState.bricks.left.push({ x: 10, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 });
-        pongState.bricks.right.push({ x: 650, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 }); // Adjusted for new width
-        pongState.bricks.right.push({ x: 670, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 }); // Adjusted for new width
+        pongState.bricks.right.push({ x: 650, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 });
+        pongState.bricks.right.push({ x: 670, y: i * 60, width: 20, height: 60, alive: true, invulnerable: 0 });
     }
 }
 
@@ -149,7 +161,6 @@ function drawPong() {
         pongState.powerUpText.timer -= 16;
     }
 
-    // Draw timers for player and enemy power-ups
     if (pongState.playerPowerUpTimer.active) {
         const timerWidth = (pongState.playerPowerUpTimer.remaining / pongState.playerPowerUpTimer.max) * pongState.width;
         ctx.fillStyle = '#00d4ff'; // Blue for player
@@ -158,7 +169,7 @@ function drawPong() {
     if (pongState.enemyPowerUpTimer.active) {
         const timerWidth = (pongState.enemyPowerUpTimer.remaining / pongState.enemyPowerUpTimer.max) * pongState.width;
         ctx.fillStyle = '#ff007a'; // Red for enemy
-        ctx.fillRect(0, pongState.height - 25, timerWidth, 10); // Slightly above player's timer
+        ctx.fillRect(0, pongState.height - 25, timerWidth, 10);
     }
 
     ctx.font = '20px Orbitron';
@@ -170,13 +181,17 @@ function drawPong() {
     gradientLeft.addColorStop(0, '#ff0000');
     gradientLeft.addColorStop(1, '#00ff00');
     ctx.fillStyle = gradientLeft;
-    ctx.fillRect(50, pongState.height - 50, (pongState.paddles.left.health / pongState.paddles.left.maxHealth) * 150, 30);
+    ctx.beginPath();
+    ctx.roundRect(50, pongState.height - 50, (pongState.paddles.left.health / pongState.paddles.left.maxHealth) * 150, 30, 15); // Oval health bar
+    ctx.fill();
 
     const gradientRight = ctx.createLinearGradient(pongState.width - 200, 0, pongState.width - 50, 0);
     gradientRight.addColorStop(0, '#ff0000');
     gradientRight.addColorStop(1, '#00ff00');
     ctx.fillStyle = gradientRight;
-    ctx.fillRect(pongState.width - 200, pongState.height - 50, (pongState.paddles.right.health / pongState.paddles.right.maxHealth) * 150, 30);
+    ctx.beginPath();
+    ctx.roundRect(pongState.width - 200, pongState.height - 50, (pongState.paddles.right.health / pongState.paddles.right.maxHealth) * 150, 30, 15); // Oval health bar
+    ctx.fill();
 
     ctx.fillStyle = '#fff';
     ctx.fillText(pongState.scores.left, 100, 50);
@@ -192,14 +207,14 @@ function drawPong() {
         ctx.fillText('Press Space or Tap to Replay', pongState.width / 2, pongState.height / 2 + 50);
     }
 }
+
 function updatePong() {
     if (!pongState.started) {
-        // AI moves even before the game starts to shoot at the player
         if (pongState.paddles.right.health > 0) {
             let targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2;
             if (isNaN(targetY)) targetY = pongState.paddles.right.y;
             let dy = (targetY - pongState.paddles.right.y) * 0.2;
-            dy = Math.max(-10, Math.min(10, dy));
+            dy = Math.max(-6.5, Math.min(6.5, dy)); // AI max speed 65% of player (6.5 vs 10)
             pongState.paddles.right.y += dy;
             pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
             if (pongState.paddles.right.shield) pongState.paddles.right.shield.y = pongState.paddles.right.y;
@@ -217,6 +232,7 @@ function updatePong() {
 
     if (pongState.gameOver) {
         drawPong();
+        animationFrameId = requestAnimationFrame(updatePong); // Keep drawing game over screen
         return;
     }
 
@@ -341,7 +357,6 @@ function updatePong() {
         }
     });
 
-    // Reset invulnerability when ball returns to the paddle's side
     if (pongState.ball.dx > 0 && pongState.ballFromPlayer) {
         pongState.paddles.left.uncontactable = 0;
         pongState.bricks.left.forEach(brick => brick.invulnerable = 0);
@@ -359,8 +374,8 @@ function updatePong() {
         pongState.powerUp = null;
         pongState.paddles.left.shield = null;
         pongState.paddles.right.shield = null;
-        pongState.paddles.left.height = 100;
-        pongState.paddles.right.height = 100;
+        pongState.paddles.left.height = 90; // Reset to 90
+        pongState.paddles.right.height = 90; // Reset to 90
         pongState.playerPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
         pongState.enemyPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
     } else if (pongState.paddles.right.health <= 0) {
@@ -370,8 +385,8 @@ function updatePong() {
         pongState.powerUp = null;
         pongState.paddles.left.shield = null;
         pongState.paddles.right.shield = null;
-        pongState.paddles.left.height = 100;
-        pongState.paddles.right.height = 100;
+        pongState.paddles.left.height = 90; // Reset to 90
+        pongState.paddles.right.height = 90; // Reset to 90
         pongState.playerPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
         pongState.enemyPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
     } else if (pongState.ball.x <= 0 || pongState.ball.x >= pongState.width) {
@@ -381,8 +396,8 @@ function updatePong() {
         pongState.powerUp = null;
         pongState.paddles.left.shield = null;
         pongState.paddles.right.shield = null;
-        pongState.paddles.left.height = 100;
-        pongState.paddles.right.height = 100;
+        pongState.paddles.left.height = 90; // Reset to 90
+        pongState.paddles.right.height = 90; // Reset to 90
         pongState.playerPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
         pongState.enemyPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
     }
@@ -399,49 +414,47 @@ function updatePong() {
     if (pongState.paddles.right.health > 0) {
         let targetY = pongState.paddles.right.y;
         const now = Date.now();
+        
+        // Shooting logic (independent of movement task)
         if (now > pongState.aiNextShot) {
             shootLaser('right');
-            pongState.aiNextShot = now + Math.random() * 1000 + 500;
+            pongState.aiNextShot = now + Math.random() * 1000 + 500; // 0.5-1.5s cooldown
         }
-        if (pongState.powerUp && !pongState.powerUp.active) {
-            // Delay AI power-up pursuit by 2 seconds
-            if (!pongState.aiPowerUpDelay) pongState.aiPowerUpDelay = now;
-            if (now - pongState.aiPowerUpDelay >= 2000) {
-                targetY = pongState.powerUp.y - pongState.paddles.right.height / 2;
-            }
-        } else if (pongState.ball.dx < 0) {
-            if (now - pongState.aiLastBehaviorChange > 500) {
-                const randomBehavior = Math.random();
-                if (randomBehavior < 0.5) {
-                    targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2;
-                } else {
-                    const ballTravelTime = (pongState.width - pongState.ball.x) / Math.abs(pongState.ball.dx);
-                    let anticipatedY = pongState.ball.y + pongState.ball.dy * ballTravelTime;
-                    targetY = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, anticipatedY)) - pongState.paddles.right.height / 2;
-                }
-                pongState.aiLastBehaviorChange = now;
-            }
-        } else if (pongState.ball.x > pongState.width * 0.6) {
-            let anticipatedY = pongState.ball.y;
-            if (!pongState.aiError.active) {
-                if (Math.random() < 0.2) {
-                    pongState.aiError.active = true;
-                    pongState.aiError.offset = (Math.random() * 40) - 20;
-                } else {
-                    pongState.aiError.active = false;
-                    pongState.aiError.offset = 0;
-                }
-            }
-            anticipatedY += pongState.aiError.offset;
+
+        // Check if ball is within 0.3 seconds (18 frames) of reaching AI
+        const timeToReachAI = pongState.ball.dx > 0 ? (pongState.paddles.right.x - pongState.ball.x - pongState.ball.radius) / pongState.ball.dx : Infinity;
+        const paddleCenterY = pongState.paddles.right.y + pongState.paddles.right.height / 2;
+
+        if (timeToReachAI <= 18 && timeToReachAI >= 0) { // Last 0.3 seconds
+            const anticipatedY = pongState.ball.y + pongState.ball.dy * timeToReachAI;
             targetY = anticipatedY - pongState.paddles.right.height / 2;
         } else {
-            pongState.aiError.active = false;
-            pongState.aiError.offset = 0;
+            // Task-switching logic (every 0.3 seconds)
+            if (now - pongState.paddles.right.lastTaskChange >= 300) {
+                pongState.paddles.right.currentTask = Math.random() < 0.5 ? 'ball' : 'player';
+                pongState.paddles.right.lastTaskChange = now;
+            }
+
+            // Set target based on current task
+            if (pongState.powerUp && !pongState.powerUp.active && now - pongState.aiPowerUpDelay >= 3500) {
+                targetY = pongState.powerUp.y - pongState.paddles.right.height / 2; // Power-up priority
+            } else if (pongState.paddles.right.currentTask === 'ball') {
+                targetY = pongState.ball.y - pongState.paddles.right.height / 2; // Track ball vertically
+            } else { // 'player'
+                targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2; // Track player
+            }
         }
-        if (isNaN(targetY)) targetY = pongState.paddles.right.y;
-        let dy = (targetY - pongState.paddles.right.y) * 0.2;
-        dy = Math.max(-10, Math.min(10, dy));
-        pongState.paddles.right.y += dy;
+
+        // Hot zone check (±7px from center)
+        const targetInHotZone = Math.abs(paddleCenterY - (targetY + pongState.paddles.right.height / 2)) <= 7;
+        if (!targetInHotZone) {
+            // Smooth movement toward target (max speed 6.5)
+            let dy = (targetY - pongState.paddles.right.y) * 0.2; // 20% of distance per frame
+            dy = Math.max(-6.5, Math.min(6.5, dy)); // Max speed 65% of player (10 * 0.65 = 6.5)
+            pongState.paddles.right.y += dy;
+        }
+
+        // Clamp paddle position
         pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
         if (pongState.paddles.right.shield) pongState.paddles.right.shield.y = pongState.paddles.right.y;
     }
@@ -459,7 +472,7 @@ function updatePong() {
             laser.y >= pongState.paddles.right.y && 
             laser.y <= pongState.paddles.right.y + pongState.paddles.right.height && 
             pongState.paddles.right.health > 0) {
-            pongState.paddles.right.health -= laser.double ? 2 : 1;
+            pongState.paddles.right.health -= 1; // Single damage per laser
             playSound(500, 0.1);
             pongState.lasers = pongState.lasers.filter(l => l !== laser);
         } else if (laser.from === 'right' && pongState.paddles.left.shield && 
@@ -472,7 +485,7 @@ function updatePong() {
             laser.y >= pongState.paddles.left.y && 
             laser.y <= pongState.paddles.left.y + pongState.paddles.left.height && 
             pongState.paddles.left.health > 0) {
-            pongState.paddles.left.health -= 1;
+            pongState.paddles.left.health -= 1; // Single damage per laser
             playSound(500, 0.1);
             pongState.lasers = pongState.lasers.filter(l => l !== laser);
         }
@@ -491,7 +504,6 @@ function updatePong() {
                 powerUpClaimed = true;
             }
         });
-        // AI picks up power-up if it overlaps
         if (!powerUpClaimed && 
             pongState.powerUp.x + 25 >= pongState.paddles.right.x && 
             pongState.powerUp.x - 25 <= pongState.paddles.right.x + pongState.paddles.right.width &&
@@ -507,27 +519,25 @@ function updatePong() {
         pongState.nextPowerUpTime = now + Math.random() * 17000 + 8000;
     }
 
-    // Update player power-up timer
     if (pongState.playerPowerUpTimer.active) {
         pongState.playerPowerUpTimer.remaining -= 16;
         if (pongState.playerPowerUpTimer.remaining <= 0) {
             if (pongState.playerPowerUpTimer.type === 'shield') {
                 pongState.paddles.left.shield = null;
             } else if (pongState.playerPowerUpTimer.type === 'wide') {
-                pongState.paddles.left.height = 100;
+                pongState.paddles.left.height = 90; // Reset to 90
             }
             pongState.playerPowerUpTimer.active = false;
         }
     }
 
-    // Update enemy power-up timer
     if (pongState.enemyPowerUpTimer.active) {
         pongState.enemyPowerUpTimer.remaining -= 16;
         if (pongState.enemyPowerUpTimer.remaining <= 0) {
             if (pongState.enemyPowerUpTimer.type === 'shield') {
                 pongState.paddles.right.shield = null;
             } else if (pongState.enemyPowerUpTimer.type === 'wide') {
-                pongState.paddles.right.height = 100;
+                pongState.paddles.right.height = 90; // Reset to 90
             }
             pongState.enemyPowerUpTimer.active = false;
         }
@@ -555,10 +565,12 @@ function resetRound() {
     pongState.powerUp = null;
     pongState.paddles.left.shield = null;
     pongState.paddles.right.shield = null;
-    pongState.paddles.left.height = 100;
-    pongState.paddles.right.height = 100;
-    pongState.playerPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 }; // Clear player power-up timer
-    pongState.enemyPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 }; // Clear enemy power-up timer
+    pongState.paddles.left.height = 90; // Reset to 90
+    pongState.paddles.right.height = 90; // Reset to 90
+    pongState.playerPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
+    pongState.enemyPowerUpTimer = { active: false, type: null, remaining: 0, max: 0 };
+    pongState.paddles.right.lastTaskChange = 0;
+    pongState.paddles.right.currentTask = 'ball';
 }
 
 function resetGame() {
@@ -572,7 +584,8 @@ function resetGame() {
     pongState.powerUp = null;
     pongState.paddles.left.shield = null;
     pongState.paddles.right.shield = null;
-    pongState.paddles.left.height = 100;
+    pongState.paddles.left.height = 90; // Reset to 90
+    pongState.paddles.right.height = 90; // Reset to 90
     pongState.scores.left = 0;
     pongState.scores.right = 0;
     pongState.roundStartTime = Date.now();
@@ -580,7 +593,10 @@ function resetGame() {
     pongState.ballFromPlayer = false;
     pongState.gameOver = false;
     pongState.winner = null;
+    pongState.started = true; // Ensure game starts immediately after reset
     pongState.roundPaused = false;
+    pongState.paddles.right.lastTaskChange = 0;
+    pongState.paddles.right.currentTask = 'ball';
     initBricks();
     spawnPowerUp();
 }
@@ -600,18 +616,16 @@ function applyPowerUp(from) {
     const paddle = pongState.paddles[from];
     const timer = from === 'left' ? pongState.playerPowerUpTimer : pongState.enemyPowerUpTimer;
 
-    // Clear existing power-up effects
     if (from === 'left') {
         pongState.paddles.left.shield = null;
-        pongState.paddles.left.height = 100;
+        pongState.paddles.left.height = 90; // Reset to 90
         pongState.playerPowerUpTimer.active = false;
     } else {
         pongState.paddles.right.shield = null;
-        pongState.paddles.right.height = 100;
+        pongState.paddles.right.height = 90; // Reset to 90
         pongState.enemyPowerUpTimer.active = false;
     }
 
-    // Apply new power-up
     if (pongState.powerUp && !pongState.powerUp.active) {
         switch (pongState.powerUp.type) {
             case 'health':
@@ -653,7 +667,7 @@ function applyPowerUp(from) {
                 pongState.powerUp.active = true;
                 break;
         }
-        pongState.powerUp = null; // Clear power-up object after application
+        pongState.powerUp = null;
     }
 }
 
@@ -661,19 +675,23 @@ function shootLaser(from) {
     const now = Date.now();
     const paddle = pongState.paddles[from];
     if (now - paddle.lastShot < 500) return;
+    const timer = from === 'left' ? pongState.playerPowerUpTimer : pongState.enemyPowerUpTimer;
     const laser = {
         x: from === 'left' ? paddle.x + paddle.width : paddle.x,
         y: paddle.y + paddle.height / 2,
         width: 20,
         dx: from === 'left' ? 10 : -10,
-        double: pongState.powerUp && pongState.powerUp.type === 'double' && pongState.powerUp.active,
         from: from
     };
     pongState.lasers.push(laser);
-    if (laser.double) {
-        const laser2 = { ...laser, y: paddle.y + paddle.height / 4 };
-        pongState.lasers.push(laser2);
+
+    if (timer.active && timer.type === 'double') {
+        const laserTop = { ...laser, y: paddle.y + paddle.height / 4 }; // Top "wing"
+        const laserBottom = { ...laser, y: paddle.y + (3 * paddle.height) / 4 }; // Bottom "wing"
+        pongState.lasers.push(laserTop);
+        pongState.lasers.push(laserBottom);
     }
+
     paddle.lastShot = now;
     playSound(400, 0.1);
 }
@@ -688,6 +706,7 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     if (pongState.gameOver && e.key === ' ') {
+        e.preventDefault(); // Prevent default behavior
         resetGame();
         return;
     }
@@ -742,7 +761,7 @@ joystick.addEventListener('touchmove', (e) => {
     const limitedDistance = Math.min(distance, maxDistance);
     stick.style.transform = `translate(${limitedDistance * Math.cos(angle) - stick.offsetWidth / 2}px, ${limitedDistance * Math.sin(angle) - stick.offsetHeight / 2}px)`;
 
-    const deadZone = 15; // Decreased from 30 to 15
+    const deadZone = 10; // Reduced to 10px
     if (Math.abs(y) > deadZone) {
         const targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 + (y / maxDistance) * (pongState.height / 2);
         if (targetY < pongState.paddles.left.y + pongState.paddles.left.height / 2) {
