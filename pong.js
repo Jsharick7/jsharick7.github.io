@@ -6,9 +6,9 @@ const shootButton = document.getElementById('shoot-button');
 
 // Pong game state
 const pongState = {
-    ball: { x: 400, y: 300, dx: 5, dy: -5, radius: 10 },
+    ball: { x: 400, y: 300, dx: 2.5, dy: -2.5, radius: 10 }, // Halved from 5 to 2.5
     paddles: { 
-        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0, dy: 0 }, 
+        left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0, dy: 0, shielded: false }, 
         right: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 } 
     },
     lasers: [],
@@ -57,6 +57,11 @@ function drawPong() {
 
     ctx.fillStyle = pongState.paddles.left.health > 0 ? '#00d4ff' : 'rgba(0, 212, 255, 0.2)';
     ctx.fillRect(10, pongState.paddles.left.y, pongState.paddles.left.width, pongState.paddles.left.height);
+    if (pongState.paddles.left.shielded) {
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(10, pongState.paddles.left.y, pongState.paddles.left.width, pongState.paddles.left.height);
+    }
     ctx.fillStyle = pongState.paddles.right.health > 0 ? '#ff007a' : 'rgba(255, 0, 122, 0.2)';
     ctx.fillRect(pongState.width - 30, pongState.paddles.right.y, pongState.paddles.right.width, pongState.paddles.right.height);
 
@@ -140,7 +145,7 @@ function updatePong() {
         if (Date.now() - pongState.roundStartTime > 2000) {
             pongState.roundPaused = false;
             resetRound();
-            spawnPowerUp(); // Spawn power-up at round start
+            spawnPowerUp();
         }
         drawPong();
         animationFrameId = requestAnimationFrame(updatePong);
@@ -167,7 +172,7 @@ function updatePong() {
         pongState.ball.y <= pongState.paddles.left.y + pongState.paddles.left.height
     ) {
         const relativeHit = (pongState.ball.y - (pongState.paddles.left.y + pongState.paddles.left.height / 2)) / (pongState.paddles.left.height / 2);
-        pongState.ball.dy += pongState.paddles.left.dy * 0.25 + relativeHit * 1; // Reduced by 50%
+        pongState.ball.dy += pongState.paddles.left.dy * 0.25 + relativeHit * 1;
         pongState.ball.dx = -pongState.ball.dx * 1.05;
     } else if (
         pongState.paddles.right.health > 0 &&
@@ -208,7 +213,7 @@ function updatePong() {
         pongState.aiNextShot = now + Math.random() * 3000 + 2000;
     }
 
-    pongState.lasers = pongState.lasers.filter(laser => laser.x >= 0 && laser.x <= pongState.width);
+    pongState.lasers = pongState.lasers.filter(laser => laser.x >=abilized && laser.x <= pongState.width);
     pongState.lasers.forEach(laser => {
         laser.x += laser.dx;
         if (laser.from === 'left' && 
@@ -223,7 +228,8 @@ function updatePong() {
             laser.x <= 30 && 
             laser.y >= pongState.paddles.left.y && 
             laser.y <= pongState.paddles.left.y + pongState.paddles.left.height && 
-            pongState.paddles.left.health > 0) {
+            pongState.paddles.left.health > 0 && 
+            !pongState.paddles.left.shielded) {
             pongState.paddles.left.health -= 1;
             playSound(500, 0.1);
             pongState.lasers = pongState.lasers.filter(l => l !== laser);
@@ -250,8 +256,8 @@ function updatePong() {
 function resetRound() {
     pongState.ball.x = pongState.width / 2;
     pongState.ball.y = pongState.height / 2;
-    pongState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
-    pongState.ball.dy = -5;
+    pongState.ball.dx = 2.5 * (Math.random() > 0.5 ? 1 : -1); // Halved from 5
+    pongState.ball.dy = -2.5;
     pongState.paddles.left.health = pongState.paddles.left.maxHealth;
     pongState.paddles.right.health = pongState.paddles.right.maxHealth;
     pongState.lasers = [];
@@ -277,20 +283,27 @@ function applyPowerUp() {
             pongState.powerUp = null;
             break;
         case 'shield':
+            pongState.paddles.left.shielded = true;
             playSound(700, 0.2);
-            setTimeout(() => pongState.powerUp = null, 7000);
+            setTimeout(() => {
+                pongState.paddles.left.shielded = false;
+                pongState.powerUp = null;
+            }, 7000);
+            pongState.powerUp = null;
             break;
         case 'double':
             playSound(650, 0.2);
             setTimeout(() => pongState.powerUp = null, 7000);
+            pongState.powerUp = { type: 'double', active: true }; // Keep active state
             break;
         case 'wide':
             pongState.paddles.left.height = 200;
             playSound(750, 0.2);
             setTimeout(() => {
                 pongState.paddles.left.height = 100;
-                if (pongState.powerUp && pongState.powerUp.type === 'wide') pongState.powerUp = null;
+                pongState.powerUp = null;
             }, 20000);
+            pongState.powerUp = null;
             break;
     }
 }
@@ -298,18 +311,18 @@ function applyPowerUp() {
 function shootLaser(from) {
     const now = Date.now();
     const paddle = pongState.paddles[from];
-    if (now - paddle.lastShot < 500) return; // 0.5s limit
+    if (now - paddle.lastShot < 500) return;
     const laser = {
         x: from === 'left' ? 30 : pongState.width - 30,
         y: paddle.y + paddle.height / 2,
         width: 20,
         dx: from === 'left' ? 10 : -10,
-        double: from === 'left' && pongState.powerUp && pongState.powerUp.type === 'double',
+        double: from === 'left' && pongState.powerUp && pongState.powerUp.type === 'double' && pongState.powerUp.active,
         from: from
     };
     pongState.lasers.push(laser);
     if (laser.double) {
-        const laser2 = { ...laser, y: paddle.y + paddle.height / 4 };
+        const laser2 = { ...laser, y: paddle.y + paddle.height / 4 }; // Spread shot
         pongState.lasers.push(laser2);
     }
     paddle.lastShot = now;
