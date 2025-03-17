@@ -183,6 +183,20 @@ function drawPong() {
 
 function updatePong() {
     if (!pongState.started) {
+        // AI moves even before the game starts to shoot at the player
+        if (pongState.paddles.right.health > 0) {
+            let targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2;
+            if (isNaN(targetY)) targetY = pongState.paddles.right.y;
+            pongState.paddles.right.y += (targetY - pongState.paddles.right.y) * 0.2;
+            pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
+            if (pongState.paddles.right.shield) pongState.paddles.right.shield.y = pongState.paddles.right.y;
+
+            const now = Date.now();
+            if (now > pongState.aiNextShot) {
+                shootLaser('right');
+                pongState.aiNextShot = now + Math.random() * 1000 + 500; // Faster shooting
+            }
+        }
         drawPong();
         animationFrameId = requestAnimationFrame(updatePong);
         return;
@@ -309,26 +323,27 @@ function updatePong() {
     // AI movement logic
     if (pongState.paddles.right.health > 0) {
         let targetY = pongState.paddles.right.y; // Default to current position
+        // Always try to shoot the player, regardless of ball direction
+        if (now > pongState.aiNextShot) {
+            shootLaser('right');
+            pongState.aiNextShot = now + Math.random() * 1000 + 500; // Faster shooting
+        }
+        // Prioritize power-up if it exists
         if (pongState.powerUp && !pongState.powerUp.active) {
-            // Chase power-up
             targetY = pongState.powerUp.y - pongState.paddles.right.height / 2;
-        } else if (pongState.ball.dx < 0) {
-            // Ball moving away, shoot at player
-            targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2;
-            if (now > pongState.aiNextShot) {
-                shootLaser('right');
-                pongState.aiNextShot = now + Math.random() * 1000 + 1000;
-            }
-        } else {
-            // Ball coming toward AI, hit it
+        } else if (pongState.ball.dx > 0) {
+            // Ball coming toward AI, prioritize hitting it
             targetY = pongState.ball.y - pongState.paddles.right.height / 2;
+        } else {
+            // Ball moving away, focus on player's position
+            targetY = pongState.paddles.left.y + pongState.paddles.left.height / 2 - pongState.paddles.right.height / 2;
         }
-        // Ensure targetY is a valid number
+        // Ensure targetY is valid
         if (isNaN(targetY)) {
-            targetY = pongState.paddles.right.y; // Fallback to current position
+            targetY = pongState.paddles.right.y;
         }
-        // Move AI paddle toward targetY (increased speed to 0.15)
-        pongState.paddles.right.y += (targetY - pongState.paddles.right.y) * 0.15;
+        // Move AI paddle (increased speed to 0.2)
+        pongState.paddles.right.y += (targetY - pongState.paddles.right.y) * 0.2;
         // Clamp position within canvas bounds
         pongState.paddles.right.y = Math.max(0, Math.min(pongState.height - pongState.paddles.right.height, pongState.paddles.right.y));
         if (pongState.paddles.right.shield) pongState.paddles.right.shield.y = pongState.paddles.right.y;
@@ -396,10 +411,10 @@ function resetRound() {
     pongState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
     pongState.ball.dy = -5;
     pongState.paddles.left.health = pongState.paddles.left.maxHealth;
-    pongState.paddles.right.health = pongState.paddles.right.maxHealth; // Ensure AI health resets
+    pongState.paddles.right.health = pongState.paddles.right.maxHealth;
     pongState.lasers = [];
     pongState.roundStartTime = Date.now();
-    pongState.aiNextShot = Date.now() + 1000;
+    pongState.aiNextShot = Date.now() + 500; // Start shooting sooner
     pongState.ballFromPlayer = false;
     initBricks();
 }
@@ -410,7 +425,7 @@ function resetGame() {
     pongState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
     pongState.ball.dy = -5;
     pongState.paddles.left.health = pongState.paddles.left.maxHealth;
-    pongState.paddles.right.health = pongState.paddles.right.maxHealth; // Ensure AI health resets
+    pongState.paddles.right.health = pongState.paddles.right.maxHealth;
     pongState.lasers = [];
     pongState.powerUp = null;
     pongState.paddles.left.shield = null;
@@ -419,7 +434,7 @@ function resetGame() {
     pongState.scores.left = 0;
     pongState.scores.right = 0;
     pongState.roundStartTime = Date.now();
-    pongState.aiNextShot = Date.now() + 1000;
+    pongState.aiNextShot = Date.now() + 500;
     pongState.ballFromPlayer = false;
     pongState.gameOver = false;
     pongState.winner = null;
