@@ -6,6 +6,9 @@
     <title>Neon Pong - AI Game Hub</title>
     <link rel="stylesheet" href="/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        #pongCanvas { width: 100%; max-width: 1000px; height: auto; aspect-ratio: 1000 / 600; }
+    </style>
 </head>
 <body>
     <header>
@@ -14,7 +17,7 @@
     </header>
     <main>
         <section class="game-container">
-            <canvas id="pongCanvas" width="800" height="600"></canvas>
+            <canvas id="pongCanvas" width="1000" height="600"></canvas>
             <p id="game-instructions">Desktop: W/S to move, Space to shoot | Mobile: Joystick to move, Button to shoot</p>
             <div id="mobile-controls" class="mobile-controls">
                 <div id="joystick" class="joystick">
