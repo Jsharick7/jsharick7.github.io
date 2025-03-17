@@ -357,6 +357,6 @@ pongCanvas.addEventListener('touchend', (e) => {
     pongState.touchY = null;
 });
 
-// Start the game
+// Start  the game
 resetRound();
 updatePong();
