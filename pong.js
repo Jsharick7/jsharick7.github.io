@@ -6,7 +6,7 @@ const shootButton = document.getElementById('shoot-button');
 
 // Pong game state
 const pongState = {
-    ball: { x: 400, y: 300, dx: 2.5, dy: -2.5, radius: 10 }, // Halved from 5 to 2.5
+    ball: { x: 400, y: 300, dx: 2.5, dy: -2.5, radius: 10 },
     paddles: { 
         left: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0, dy: 0, shielded: false }, 
         right: { y: 300, width: 20, height: 100, health: 5, maxHealth: 5, lastShot: 0 } 
@@ -130,6 +130,8 @@ function drawPong() {
 
 // Update Pong logic
 function updatePong() {
+    console.log('updatePong running', { started: pongState.started, gameOver: pongState.gameOver, roundPaused: pongState.roundPaused });
+    
     if (!pongState.started) {
         drawPong();
         animationFrameId = requestAnimationFrame(updatePong);
@@ -146,6 +148,7 @@ function updatePong() {
             pongState.roundPaused = false;
             resetRound();
             spawnPowerUp();
+            console.log('Round resumed, power-up spawned');
         }
         drawPong();
         animationFrameId = requestAnimationFrame(updatePong);
@@ -199,6 +202,7 @@ function updatePong() {
         } else {
             pongState.roundPaused = true;
             pongState.roundStartTime = now;
+            console.log('Round paused, score:', pongState.scores);
         }
     }
 
@@ -213,7 +217,7 @@ function updatePong() {
         pongState.aiNextShot = now + Math.random() * 3000 + 2000;
     }
 
-    pongState.lasers = pongState.lasers.filter(laser => laser.x >=abilized && laser.x <= pongState.width);
+    pongState.lasers = pongState.lasers.filter(laser => laser.x >= 0 && laser.x <= pongState.width);
     pongState.lasers.forEach(laser => {
         laser.x += laser.dx;
         if (laser.from === 'left' && 
@@ -245,6 +249,7 @@ function updatePong() {
                 laser.y <= pongState.powerUp.y + 20) {
                 applyPowerUp();
                 pongState.lasers = pongState.lasers.filter(l => l !== laser);
+                console.log('Power-up hit:', pongState.powerUp);
             }
         });
     }
@@ -256,7 +261,7 @@ function updatePong() {
 function resetRound() {
     pongState.ball.x = pongState.width / 2;
     pongState.ball.y = pongState.height / 2;
-    pongState.ball.dx = 2.5 * (Math.random() > 0.5 ? 1 : -1); // Halved from 5
+    pongState.ball.dx = 2.5 * (Math.random() > 0.5 ? 1 : -1);
     pongState.ball.dy = -2.5;
     pongState.paddles.left.health = pongState.paddles.left.maxHealth;
     pongState.paddles.right.health = pongState.paddles.right.maxHealth;
@@ -273,6 +278,7 @@ function spawnPowerUp() {
         type: types[Math.floor(Math.random() * types.length)]
     };
     pongState.lastPowerUpTime = Date.now();
+    console.log('Power-up spawned:', pongState.powerUp);
 }
 
 function applyPowerUp() {
@@ -287,25 +293,28 @@ function applyPowerUp() {
             playSound(700, 0.2);
             setTimeout(() => {
                 pongState.paddles.left.shielded = false;
-                pongState.powerUp = null;
+                if (pongState.powerUp && pongState.powerUp.type === 'shield') pongState.powerUp = null;
             }, 7000);
             pongState.powerUp = null;
             break;
         case 'double':
             playSound(650, 0.2);
-            setTimeout(() => pongState.powerUp = null, 7000);
-            pongState.powerUp = { type: 'double', active: true }; // Keep active state
+            pongState.powerUp = { type: 'double', active: true };
+            setTimeout(() => {
+                if (pongState.powerUp && pongState.powerUp.type === 'double') pongState.powerUp = null;
+            }, 7000);
             break;
         case 'wide':
             pongState.paddles.left.height = 200;
             playSound(750, 0.2);
             setTimeout(() => {
                 pongState.paddles.left.height = 100;
-                pongState.powerUp = null;
+                if (pongState.powerUp && pongState.powerUp.type === 'wide') pongState.powerUp = null;
             }, 20000);
             pongState.powerUp = null;
             break;
     }
+    console.log('Power-up applied:', pongState.powerUp);
 }
 
 function shootLaser(from) {
@@ -322,7 +331,7 @@ function shootLaser(from) {
     };
     pongState.lasers.push(laser);
     if (laser.double) {
-        const laser2 = { ...laser, y: paddle.y + paddle.height / 4 }; // Spread shot
+        const laser2 = { ...laser, y: paddle.y + paddle.height / 4 };
         pongState.lasers.push(laser2);
     }
     paddle.lastShot = now;
@@ -363,7 +372,6 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
-// Mobile Joystick
 let joystickActive = false;
 joystick.addEventListener('touchstart', (e) => {
     if (pongState.gameOver || pongState.started) return;
