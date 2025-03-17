@@ -15,7 +15,13 @@
     <main>
         <section class="game-container">
             <canvas id="pongCanvas" width="800" height="600"></canvas>
-            <p id="game-instructions">Swipe left side to move, tap right side to shoot!</p>
+            <p id="game-instructions">Desktop: W/S to move, Space to shoot | Mobile: Joystick to move, Button to shoot</p>
+            <div id="mobile-controls" class="mobile-controls">
+                <div id="joystick" class="joystick">
+                    <div id="stick" class="stick"></div>
+                </div>
+                <button id="shoot-button" class="shoot-button">Shoot</button>
+            </div>
         </section>
     </main>
     <script src="/pong.js"></script>
