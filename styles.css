@@ -205,10 +205,9 @@ h3 {
         display: flex;
     }
 }
-
 .game-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Slightly narrower cards */
     gap: 20px;
     padding: 20px;
 }
@@ -217,7 +216,7 @@ h3 {
     background: #2a2a4e;
     border: 2px solid #00d4ff;
     border-radius: 10px;
-    padding: 20px;
+    padding: 15px; /* Reduced padding */
     text-align: center;
     transition: transform 0.3s;
 }
@@ -227,22 +226,66 @@ h3 {
 }
 
 .game-screenshot {
-    width: 100%;
+    width: 100%; /* Full width of card */
+    max-width: 200px; /* Cap screenshot size */
     height: auto;
     border-radius: 5px;
     margin-bottom: 10px;
+    object-fit: cover; /* Ensure image fits without distortion */
 }
 
 .btn {
     display: inline-block;
-    padding: 10px 20px;
+    padding: 8px 15px; /* Reduced padding for smaller buttons */
     background: #ff007a;
     color: #fff;
     text-decoration: none;
     border-radius: 5px;
     margin-top: 10px;
+    font-size: 14px; /* Smaller font for button text */
 }
 
 .btn:hover {
     background: #00d4ff;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background: #2a2a4e;
+    margin: 15% auto;
+    padding: 20px;
+    border: 2px solid #00d4ff;
+    border-radius: 10px;
+    width: 300px;
+    text-align: center;
+}
+
+.close {
+    color: #fff;
+    float: right;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #00d4ff;
+}
+
+input {
+    width: 80%;
+    padding: 10px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 5px;
+    background: #1a1a2e;
+    color: #fff;
 }
