@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Snake - AI Game Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #0d0d1a;
+            font-family: 'Orbitron', sans-serif;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center; /* Center horizontally */
+            align-items: center; /* Center vertically */
+            min-height: 100vh; /* Ensure full height */
+            overflow: hidden;
+            flex-direction: column;
+        }
+        header {
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #00ffcc;
+            font-size: 2.5em;
+            margin: 0;
+        }
+        nav .btn {
+            color: #ff007a;
+            text-decoration: none;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            border: 2px solid #ff007a;
+            border-radius: 5px;
+        }
+        nav .btn:hover {
+            background: #ff007a;
+            color: #0d0d1a;
+        }
+        #snakeCanvas {
+            width: 70vw;
+            height: 70vw;
+            max-width: 70vh;
+            max-height: 70vh;
+        }
+        #game-instructions {
+            color: #fff;
+            font-size: 1em;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Neon Snake</h1>
+        <nav><a href="/games.html" class="btn">Back to Games</a></nav>
+    </header>
+    <main>
+        <section class="game-container">
+            <canvas id="snakeCanvas"></canvas>
+            <p id="game-instructions">Desktop: WASD/Arrow Keys | Mobile: Swipe | Space/Tap to restart | Survive the glitches!</p>
+        </section>
+    </main>
+    <script src="/snake.js"></script>
+</body>
+</html>
