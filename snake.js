@@ -1,36 +1,63 @@
 const canvas = document.getElementById('snakeCanvas');
 const ctx = canvas.getContext('2d');
-const tileCount = 64; // 64x64 grid
-const gridSize = 8; // 8px per square
-let snake = [{ x: 32, y: 32 }];
+const scoreDisplay = document.getElementById('scoreDisplay');
+const tileCount = 66;
+const gridSize = 8;
+let snake = [];
 let dx = 0;
 let dy = 0;
 let moveQueue = [];
 let bitsCollected = 0;
+let highScore = localStorage.getItem('highScore') ? parseInt(localStorage.getItem('highScore')) : 0;
 let targetBit = null;
 let gameRunning = true;
 let deathAnimation = false;
 let blinkCount = 0;
-let timer = 15;
+let timer = 10;
 let lastUpdateTime = performance.now();
-let glitchActive = false;
 let bugs = [];
 let partitions = [];
-let glitchDuration = 0;
+let partitionsTimer = 0;
+let corruptedDriversActive = false;
+let corruptedTimer = 0;
+let fragmentedDriveActive = false;
+let fragmentedTimer = 0;
+let dataScrambleActive = false;
+let dataScrambleMap = [];
+let magneticActive = false;
+let magneticTimer = 0;
+let lostSegments = [];
+let rejoiningSegments = [];
+let deathColumns = [0, 0];
 let eventMessage = '';
 let eventTimer = 0;
-let lostSegments = []; // Blue segments to rejoin
-const tickSpeed = 1000 / 15; // 15 squares per second (~66.67ms)
+const tickSpeed = 1000 / 15; // ~66ms per tick
+const sectionSize = 16;
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(frequency, duration, type = 'sine') {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gainNode.gain.value = 0.1;
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + duration / 1000);
+}
 
 function resizeCanvas() {
-    const size = Math.min(window.innerWidth * 0.7, window.innerHeight * 0.7); // 70vh/vw
-    canvas.width = tileCount * gridSize; // 512px
-    canvas.height = tileCount * gridSize; // 512px
+    const size = Math.min(window.innerWidth * 0.7, window.innerHeight * 0.7);
+    canvas.width = tileCount * gridSize;
+    canvas.height = tileCount * gridSize + 80;
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
 }
 
 function startGame() {
+    snake = [{ x: 33, y: 33 }];
     const directions = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
     const randomDir = directions[Math.floor(Math.random() * directions.length)];
     dx = randomDir.dx;
@@ -51,149 +78,456 @@ function gameLoop(currentTime) {
         }
     }
 
-    draw();
+    if (fragmentedDriveActive) {
+        drawFragmented();
+    } else {
+        draw();
+    }
 }
 
 function update(deltaTime) {
-    if (!glitchActive) {
+    if (corruptedDriversActive) {
+        corruptedTimer -= deltaTime;
+        if (corruptedTimer <= 0) {
+            corruptedDriversActive = false;
+            timer = 10;
+            showEvent('Controls Restored!');
+        }
+    }
+
+    if (fragmentedDriveActive) {
+        fragmentedTimer -= deltaTime;
+        if (fragmentedTimer <= 0) {
+            fragmentedDriveActive = false;
+            timer = 10;
+        }
+    }
+
+    if (partitions.length > 0) {
+        partitionsTimer -= deltaTime;
+        if (partitionsTimer <= 0) {
+            partitions = [];
+            timer = 10;
+        }
+    }
+
+    if (magneticActive) {
+        magneticTimer -= deltaTime;
+        if (magneticTimer <= 0) {
+            magneticActive = false;
+        }
+    }
+
+    if (!corruptedDriversActive && !fragmentedDriveActive && !partitions.length) {
         timer -= deltaTime;
         if (timer <= 0) {
             triggerGlitch();
-            return;
         }
-    } else {
-        updateGlitch();
     }
 
     if (moveQueue.length > 0) {
         const nextMove = moveQueue.shift();
-        dx = nextMove.dx;
-        dy = nextMove.dy;
+        dx = corruptedDriversActive ? -nextMove.dx : nextMove.dx;
+        dy = corruptedDriversActive ? -nextMove.dy : nextMove.dy;
     }
 
-    const head = { x: snake[0].x + dx, y: snake[0].y + dy };
-    if (checkCollision(head)) {
+    let head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+    if (fragmentedDriveActive) {
+        if (head.x <= 0) {
+            head.x = 64;
+            dx = -1;
+        } else if (head.x >= tileCount - 1) {
+            head.x = 1;
+            dx = 1;
+        }
+    }
+
+    let safeMove = false;
+
+    lostSegments = lostSegments.filter(segment => {
+        const touched = segment.tail.some(seg => head.x === seg.x && head.y === seg.y);
+        if (touched) {
+            rejoiningSegments.push(...segment.tail);
+            safeMove = true;
+            return false;
+        }
+        return true;
+    });
+
+    if (!safeMove && checkCollision(head)) {
         gameRunning = false;
+        playSound(200, 500, 'square');
         startDeathAnimation();
         return;
     }
 
     snake.unshift(head);
 
-    // Check for lost segment reconnection
-    lostSegments = lostSegments.filter(segment => {
-        if (head.x === segment.x && head.y === segment.y) {
-            snake.push(...segment.tail); // Rejoin full length
-            return false;
+    if (magneticActive && targetBit) {
+        const dxBit = head.x - targetBit.x;
+        const dyBit = head.y - targetBit.y;
+        const distance = Math.sqrt(dxBit * dxBit + dyBit * dyBit);
+        if (distance <= 1) {
+            bitsCollected++;
+            playSound(800, 100);
+            timer += 3;
+            if (targetBit.isStabilizing) timer += 10;
+            if (targetBit.isMagnetic) {
+                magneticActive = true;
+                magneticTimer = 30;
+                showEvent('Magnetic Field Active!');
+            }
+            targetBit = null;
+            spawnBit();
+        } else if (distance <= 5) {
+            const moveSpeed = 2;
+            if (Math.abs(dxBit) > Math.abs(dyBit)) {
+                targetBit.x += dxBit > 0 ? moveSpeed : -moveSpeed;
+                if (Math.abs(dyBit) > 0) targetBit.y += dyBit > 0 ? 1 : -1;
+            } else {
+                targetBit.y += dyBit > 0 ? moveSpeed : -moveSpeed;
+                if (Math.abs(dxBit) > 0) targetBit.x += dxBit > 0 ? 1 : -1;
+            }
+            targetBit.x = Math.max(1, Math.min(tileCount - 2, targetBit.x));
+            targetBit.y = Math.max(1, Math.min(tileCount - 2, targetBit.y));
         }
-        return true;
-    });
+    }
 
     if (targetBit && head.x === targetBit.x && head.y === targetBit.y) {
         bitsCollected++;
+        playSound(800, 100);
         timer += 3;
-        if (targetBit.isStabilizing) {
-            timer += 10; // Pause timer for 10 seconds
-            showEvent('Stabilizing Bit Collected!');
+        if (targetBit.isStabilizing) timer += 10;
+        if (targetBit.isMagnetic) {
+            magneticActive = true;
+            magneticTimer = 30;
+            showEvent('Magnetic Field Active!');
         }
+        targetBit = null;
         spawnBit();
+    } else if (rejoiningSegments.length > 0 && (dx !== 0 || dy !== 0)) {
+        rejoiningSegments.shift();
     } else {
         snake.pop();
+    }
+
+    if (bugs.length > 0) {
+        console.log(`Updating ${bugs.length} bugs`);
+        bugs = bugs.filter(bug => {
+            const head = bug.segments[0];
+            let direction = bug.direction;
+            let newHead = { x: head.x + direction.dx, y: head.y + direction.dy };
+
+            // Initial 10 moves: invincible, straight movement
+            if (bug.distanceMoved < bug.initialMove) {
+                bug.segments.unshift(newHead);
+                bug.segments.pop();
+                bug.distanceMoved++;
+                console.log(`Bug moved to (${newHead.x}, ${newHead.y}) - invincible (${bug.distanceMoved}/${bug.initialMove})`);
+                return true;
+            }
+
+            // After 10 moves: random direction changes
+            bug.directionChangeTimer--;
+            if (bug.directionChangeTimer <= 0) {
+                const directions = [
+                    { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+                ].filter(d => d.dx !== -direction.dx || d.dy !== -direction.dy); // Avoid reversing
+                direction = directions[Math.floor(Math.random() * directions.length)];
+                bug.direction = direction;
+                bug.directionChangeTimer = Math.floor(Math.random() * 38) + 7; // 7-45 ticks (~0.47-3 sec)
+                console.log(`Bug at (${head.x}, ${head.y}) changed direction to (${direction.dx}, ${direction.dy})`);
+            }
+
+            newHead = { x: head.x + direction.dx, y: head.y + direction.dy };
+
+            // Death conditions
+            if (newHead.x < 1 || newHead.x > tileCount - 2 || newHead.y < 1 || newHead.y > tileCount - 2 ||
+                snake.some(s => s.x === newHead.x && s.y === newHead.y) ||
+                bug.segments.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
+                console.log(`Bug died at (${newHead.x}, ${newHead.y})`);
+                return false;
+            }
+
+            // Move if valid
+            if (newHead.x >= 1 && newHead.x <= tileCount - 2 && newHead.y >= 1 && newHead.y <= tileCount - 2 && !isOccupied(newHead)) {
+                bug.segments.unshift(newHead);
+                bug.segments.pop();
+                bug.distanceMoved++;
+                console.log(`Bug moved to (${newHead.x}, ${newHead.y})`);
+                return true;
+            }
+
+            console.log(`Bug died at (${newHead.x}, ${newHead.y}) - no valid move`);
+            return false;
+        });
     }
 
     if (eventTimer > 0) {
         eventTimer -= deltaTime;
         if (eventTimer <= 0) eventMessage = '';
     }
+
+    scoreDisplay.textContent = `Bits: ${bitsCollected}  High Score: ${highScore}`;
 }
 
 function draw() {
     ctx.fillStyle = '#0d0d1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const timerHeight = canvas.height * 0.05;
-    const playfieldHeight = canvas.height - timerHeight * 2;
-
-    // Draw border using grid squares
-    ctx.fillStyle = '#00ffcc';
-    for (let i = 0; i < tileCount; i++) {
-        ctx.fillRect(i * gridSize, 0, gridSize - 1, gridSize - 1);
-        ctx.fillRect(i * gridSize, (tileCount - 1) * gridSize, gridSize - 1, gridSize - 1);
-        ctx.fillRect(0, i * gridSize, gridSize - 1, gridSize - 1);
-        ctx.fillRect((tileCount - 1) * gridSize, i * gridSize, gridSize - 1, gridSize - 1);
+    if (dataScrambleActive) {
+        drawScrambled();
+    } else {
+        drawGameElements(x => x, y => y);
     }
 
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(canvas.width, 0);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, tileCount * gridSize);
+    ctx.moveTo(canvas.width - 1, 0);
+    ctx.lineTo(canvas.width - 1, tileCount * gridSize);
+    ctx.moveTo(0, tileCount * gridSize - 1);
+    ctx.lineTo(canvas.width, tileCount * gridSize - 1);
+    ctx.stroke();
+
+    drawTimers();
+    drawEventMessage(tileCount * gridSize);
+    if (deathAnimation) drawDeathAnimation();
+}
+
+function drawFragmented() {
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawGameElements(x => x, y => y);
+
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(canvas.width, 0);
+    ctx.moveTo(0, tileCount * gridSize - 1);
+    ctx.lineTo(canvas.width, tileCount * gridSize - 1);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, tileCount * gridSize);
+    ctx.moveTo(canvas.width - 1, 0);
+    ctx.lineTo(canvas.width - 1, tileCount * gridSize);
+    ctx.moveTo(deathColumns[0] * gridSize, 0);
+    ctx.lineTo(deathColumns[0] * gridSize, tileCount * gridSize);
+    ctx.moveTo((deathColumns[1] + 1) * gridSize - 1, 0);
+    ctx.lineTo((deathColumns[1] + 1) * gridSize - 1, tileCount * gridSize);
+    ctx.stroke();
+
+    drawTimers();
+    drawEventMessage(tileCount * gridSize);
+    if (deathAnimation) drawDeathAnimation();
+}
+
+function drawScrambled() {
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     snake.forEach(segment => {
-        ctx.fillStyle = '#ff007a';
-        ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
-        ctx.strokeStyle = '#ff007a';
+        const drawX = segment.x;
+        const drawY = segment.y;
+        ctx.fillStyle = magneticActive ? '#c0c0c0' : '#ff007a';
+        ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeStyle = magneticActive ? '#c0c0c0' : '#ff007a';
         ctx.lineWidth = 1;
-        ctx.strokeRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
     });
 
     lostSegments.forEach(segment => {
         segment.tail.forEach(seg => {
-            ctx.fillStyle = '#0000ff'; // Blue for lost segments
-            ctx.fillRect(seg.x * gridSize, seg.y * gridSize, gridSize - 1, gridSize - 1);
+            const drawX = seg.x;
+            const drawY = seg.y;
+            ctx.fillStyle = '#0000ff';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
         });
     });
 
     if (targetBit) {
-        ctx.fillStyle = targetBit.isStabilizing ? '#00ff00' : '#00ffcc';
+        const drawX = targetBit.x;
+        const drawY = targetBit.y;
+        ctx.fillStyle = targetBit.isStabilizing ? '#00ff00' : (targetBit.isMagnetic ? '#0000ff' : '#00ffcc');
         if (targetBit.isStabilizing) {
             ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-            ctx.roundRect(targetBit.x * gridSize - gridSize, targetBit.y * gridSize - gridSize, gridSize * 3, gridSize * 3, gridSize);
+            ctx.roundRect(drawX * gridSize - gridSize, drawY * gridSize - gridSize, gridSize * 3, gridSize * 3, gridSize);
             ctx.fill();
             ctx.fillStyle = '#00ff00';
+        } else if (targetBit.isMagnetic) {
+            ctx.fillStyle = 'rgba(0, 0, 255, 0.3)';
+            ctx.roundRect(drawX * gridSize - gridSize, drawY * gridSize - gridSize, gridSize * 3, gridSize * 3, gridSize);
+            ctx.fill();
+            ctx.fillStyle = '#0000ff';
         }
-        ctx.fillRect(targetBit.x * gridSize, targetBit.y * gridSize, gridSize - 1, gridSize - 1);
-        ctx.strokeStyle = targetBit.isStabilizing ? '#00ff00' : '#00ffcc';
+        ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeStyle = targetBit.isStabilizing ? '#00ff00' : (targetBit.isMagnetic ? '#0000ff' : '#00ffcc');
         ctx.lineWidth = 1;
-        ctx.strokeRect(targetBit.x * gridSize, targetBit.y * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
     }
 
-    if (glitchActive) {
-        drawGlitch();
-    }
+    bugs.forEach(bug => {
+        bug.segments.forEach(segment => {
+            const drawX = segment.x;
+            const drawY = segment.y;
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        });
+    });
 
-    drawTimerBar(playfieldHeight);
-    drawScore();
-    drawEventMessage(playfieldHeight);
-
-    if (deathAnimation) {
-        drawDeathAnimation();
-    }
+    partitions.forEach(partition => {
+        partition.forEach(segment => {
+            const drawX = segment.x;
+            const drawY = segment.y;
+            ctx.fillStyle = '#ff8000';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        });
+    });
 }
 
-function drawTimerBar(playfieldHeight) {
-    const timerHeight = canvas.height * 0.05;
-    const barWidth = Math.max(0, (timer / 15) * canvas.width);
-    
-    ctx.fillStyle = '#ffff00';
-    ctx.font = `${timerHeight * 0.6}px Orbitron`;
-    ctx.textAlign = 'left';
-    ctx.fillText('Time to Next Glitch', 10, playfieldHeight + timerHeight * 0.75);
+function drawGameElements(transformX, transformY) {
+    snake.forEach(segment => {
+        const drawX = transformX(segment.x);
+        const drawY = transformY(segment.y);
+        ctx.fillStyle = magneticActive ? '#c0c0c0' : '#ff007a';
+        ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeStyle = magneticActive ? '#c0c0c0' : '#ff007a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+    });
 
+    lostSegments.forEach(segment => {
+        segment.tail.forEach(seg => {
+            const drawX = transformX(seg.x);
+            const drawY = transformY(seg.y);
+            ctx.fillStyle = '#0000ff';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        });
+    });
+
+    if (targetBit) {
+        const drawX = transformX(targetBit.x);
+        const drawY = transformY(targetBit.y);
+        ctx.fillStyle = targetBit.isStabilizing ? '#00ff00' : (targetBit.isMagnetic ? '#0000ff' : '#00ffcc');
+        if (targetBit.isStabilizing) {
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+            ctx.roundRect(drawX * gridSize - gridSize, drawY * gridSize - gridSize, gridSize * 3, gridSize * 3, gridSize);
+            ctx.fill();
+            ctx.fillStyle = '#00ff00';
+        } else if (targetBit.isMagnetic) {
+            ctx.fillStyle = 'rgba(0, 0, 255, 0.3)';
+            ctx.roundRect(drawX * gridSize - gridSize, drawY * gridSize - gridSize, gridSize * 3, gridSize * 3, gridSize);
+            ctx.fill();
+            ctx.fillStyle = '#0000ff';
+        }
+        ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        ctx.strokeStyle = targetBit.isStabilizing ? '#00ff00' : (targetBit.isMagnetic ? '#0000ff' : '#00ffcc');
+        ctx.lineWidth = 1;
+        ctx.strokeRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+    }
+
+    bugs.forEach(bug => {
+        bug.segments.forEach(segment => {
+            const drawX = transformX(segment.x);
+            const drawY = transformY(segment.y);
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        });
+    });
+
+    partitions.forEach(partition => {
+        partition.forEach(segment => {
+            const drawX = transformX(segment.x);
+            const drawY = transformY(segment.y);
+            ctx.fillStyle = '#ff8000';
+            ctx.fillRect(drawX * gridSize, drawY * gridSize, gridSize - 1, gridSize - 1);
+        });
+    });
+}
+
+function drawTimers() {
+    let yOffset = tileCount * gridSize + 5;
+
+    const glitchBarWidth = Math.max(0, (timer / 10) * canvas.width);
     ctx.fillStyle = '#ffff00';
-    ctx.fillRect(0, playfieldHeight + timerHeight, barWidth, timerHeight);
+    ctx.fillRect(0, yOffset, glitchBarWidth, 15);
     ctx.strokeStyle = '#ffff00';
     ctx.lineWidth = 1;
-    ctx.strokeRect(0, playfieldHeight + timerHeight, canvas.width, timerHeight);
-
+    ctx.strokeRect(0, yOffset, canvas.width, 15);
+    ctx.fillStyle = '#00ff00';
+    ctx.font = 'bold 14px Orbitron';
     ctx.textAlign = 'right';
-    const minutes = Math.floor(timer / 60);
-    const seconds = Math.floor(timer % 60);
-    const tenths = Math.floor((timer % 1) * 10);
-    const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`;
-    ctx.fillText(timeStr, canvas.width - 10, playfieldHeight + timerHeight * 1.75);
-}
+    const glitchMinutes = Math.floor(timer / 60);
+    const glitchSeconds = Math.floor(timer % 60);
+    const glitchTenths = Math.floor((timer % 1) * 10);
+    const glitchTimeStr = `${String(glitchMinutes).padStart(2, '0')}:${String(glitchSeconds).padStart(2, '0')}.${glitchTenths}`;
+    ctx.fillText(glitchTimeStr, canvas.width - 10, yOffset + 12);
+    yOffset += 15;
 
-function drawScore() {
-    const timerHeight = canvas.height * 0.05;
-    ctx.fillStyle = '#00ffcc';
-    ctx.font = `${timerHeight * 0.6}px Orbitron`;
-    ctx.textAlign = 'right';
-    ctx.fillText(`Bits: ${bitsCollected}`, canvas.width - 10, timerHeight * 0.75); // Top-right, above board
+    if (corruptedDriversActive) {
+        const corruptedBarWidth = Math.max(0, (corruptedTimer / 15) * canvas.width);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(0, yOffset, corruptedBarWidth, 15);
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, yOffset, canvas.width, 15);
+        ctx.fillStyle = '#00ff00';
+        const corruptedSeconds = Math.floor(corruptedTimer);
+        const corruptedTenths = Math.floor((corruptedTimer % 1) * 10);
+        const corruptedTimeStr = `${String(corruptedSeconds).padStart(2, '0')}.${corruptedTenths}`;
+        ctx.fillText(corruptedTimeStr, canvas.width - 10, yOffset + 12);
+        yOffset += 15;
+    }
+
+    if (partitions.length > 0) {
+        const partitionsBarWidth = Math.max(0, (partitionsTimer / 15) * canvas.width);
+        ctx.fillStyle = '#ff8000';
+        ctx.fillRect(0, yOffset, partitionsBarWidth, 15);
+        ctx.strokeStyle = '#ff8000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, yOffset, canvas.width, 15);
+        ctx.fillStyle = '#00ff00';
+        const partitionsSeconds = Math.floor(partitionsTimer);
+        const partitionsTenths = Math.floor((partitionsTimer % 1) * 10);
+        const partitionsTimeStr = `${String(partitionsSeconds).padStart(2, '0')}.${partitionsTenths}`;
+        ctx.fillText(partitionsTimeStr, canvas.width - 10, yOffset + 12);
+        yOffset += 15;
+    }
+
+    if (magneticActive) {
+        const magneticBarWidth = Math.max(0, (magneticTimer / 30) * canvas.width);
+        ctx.fillStyle = '#0000ff';
+        ctx.fillRect(0, yOffset, magneticBarWidth, 15);
+        ctx.strokeStyle = '#0000ff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, yOffset, canvas.width, 15);
+        ctx.fillStyle = '#00ff00';
+        const magneticSeconds = Math.floor(magneticTimer);
+        const magneticTenths = Math.floor((magneticTimer % 1) * 10);
+        const magneticTimeStr = `${String(magneticSeconds).padStart(2, '0')}.${magneticTenths}`;
+        ctx.fillText(magneticTimeStr, canvas.width - 10, yOffset + 12);
+        yOffset += 15;
+    }
+
+    if (fragmentedDriveActive) {
+        const fragmentedBarWidth = Math.max(0, (fragmentedTimer / 30) * canvas.width);
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(0, yOffset, fragmentedBarWidth, 15);
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, yOffset, canvas.width, 15);
+        ctx.fillStyle = '#00ff00';
+        const fragmentedSeconds = Math.floor(fragmentedTimer);
+        const fragmentedTenths = Math.floor((fragmentedTimer % 1) * 10);
+        const fragmentedTimeStr = `${String(fragmentedSeconds).padStart(2, '0')}.${fragmentedTenths}`;
+        ctx.fillText(fragmentedTimeStr, canvas.width - 10, yOffset + 12);
+    }
 }
 
 function drawEventMessage(playfieldHeight) {
@@ -207,9 +541,9 @@ function drawEventMessage(playfieldHeight) {
 function drawDeathAnimation() {
     if (blinkCount % 2 === 0) {
         snake.forEach(segment => {
-            ctx.fillStyle = '#ff007a';
+            ctx.fillStyle = magneticActive ? '#c0c0c0' : '#ff007a';
             ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
-            ctx.strokeStyle = '#ff007a';
+            ctx.strokeStyle = magneticActive ? '#c0c0c0' : '#ff007a';
             ctx.lineWidth = 1;
             ctx.strokeRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
         });
@@ -230,9 +564,13 @@ function startDeathAnimation() {
     setInterval(() => {
         if (deathAnimation) blinkCount++;
     }, 250);
+
+    if (bitsCollected > highScore) {
+        highScore = bitsCollected;
+        localStorage.setItem('highScore', highScore);
+    }
 }
 
-// Utility Functions
 function isOccupied(pos) {
     return snake.some(s => s.x === pos.x && s.y === pos.y) || 
            (targetBit && targetBit.x === pos.x && targetBit.y === pos.y) || 
@@ -249,31 +587,239 @@ function spawnBit() {
         attempts++;
     }
     targetBit.isStabilizing = Math.random() < 1/30;
+    targetBit.isMagnetic = Math.random() < 1/45;
     if (targetBit.isStabilizing) showEvent('Stabilizing Bit!');
+    if (targetBit.isMagnetic) showEvent('Magnetic Bit!');
+}
+
+function spawnBug() {
+    const bug = { 
+        segments: [], 
+        direction: { dx: 0, dy: 0 }, 
+        distanceMoved: 0, 
+        initialMove: 10, // Fixed at 10
+        directionChangeTimer: 0 // Start at 0, set after initial move
+    };
+    const length = Math.floor(Math.random() * 5) + 5; // 5-9 segments
+    const edge = Math.floor(Math.random() * 4);
+    let startX, startY, direction;
+
+    switch (edge) {
+        case 0: // Left
+            startX = 1; // Head at 1
+            startY = Math.floor(Math.random() * (tileCount - 2)) + 1; // 1-64
+            direction = { dx: 1, dy: 0 }; // Moves right
+            break;
+        case 1: // Right
+            startX = tileCount - 2; // Head at 64
+            startY = Math.floor(Math.random() * (tileCount - 2)) + 1; // 1-64
+            direction = { dx: -1, dy: 0 }; // Moves left
+            break;
+        case 2: // Top
+            startX = Math.floor(Math.random() * (tileCount - 2)) + 1; // 1-64
+            startY = 1; // Head at 1
+            direction = { dx: 0, dy: 1 }; // Moves down
+            break;
+        case 3: // Bottom
+            startX = Math.floor(Math.random() * (tileCount - 2)) + 1; // 1-64
+            startY = tileCount - 2; // Head at 64
+            direction = { dx: 0, dy: -1 }; // Moves up
+            break;
+    }
+
+    console.log(`Attempting to spawn bug at (${startX}, ${startY}) with direction (${direction.dx}, ${direction.dy}), length ${length}`);
+
+    for (let i = 0; i < length; i++) {
+        const pos = { x: startX + i * direction.dx, y: startY + i * direction.dy };
+        if (pos.x < 1 || pos.x > tileCount - 2 || pos.y < 1 || pos.y > tileCount - 2 || isOccupied(pos)) {
+            console.log(`Spawn failed: Position (${pos.x}, ${pos.y}) out of bounds or occupied`);
+            return null;
+        }
+        bug.segments.push(pos);
+    }
+
+    bug.direction = direction;
+    console.log(`Bug spawned successfully at (${startX}, ${startY}) with ${bug.segments.length} segments`);
+    return bug;
+}
+
+function bugAttack() {
+    bugs = [];
+    let attempts = 0;
+    while (bugs.length < 5 && attempts < 20) {
+        const bug = spawnBug();
+        if (bug) {
+            bugs.push(bug);
+            console.log(`Bug ${bugs.length} added`);
+        }
+        attempts++;
+    }
+    console.log(`Bug Attack triggered: ${bugs.length} bugs spawned`);
+    timer = 10;
+    dataScrambleActive = false;
+    showEvent('Bug Attack!');
+}
+
+function dataScramble() {
+    timer = 10;
+    bugs = [];
+    partitions = [];
+    dataScrambleActive = true;
+
+    const head = snake[0];
+    const headSectionX = Math.floor(head.x / sectionSize);
+    const headSectionY = Math.floor(head.y / sectionSize);
+    const headSection = headSectionY * 4 + headSectionX;
+    const middleSquares = [5, 6, 9, 10];
+
+    dataScrambleMap = Array.from({ length: 16 }, (_, i) => i);
+    for (let i = dataScrambleMap.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [dataScrambleMap[i], dataScrambleMap[j]] = [dataScrambleMap[j], dataScrambleMap[i]];
+    }
+
+    const headMappedTo = dataScrambleMap[headSection];
+    if (!middleSquares.includes(headMappedTo)) {
+        const randomMiddle = middleSquares[Math.floor(Math.random() * 4)];
+        const currentMiddleIndex = dataScrambleMap.indexOf(randomMiddle);
+        dataScrambleMap[currentMiddleIndex] = headMappedTo;
+        dataScrambleMap[headSection] = randomMiddle;
+    }
+
+    const newSnake = [];
+    const severedSegments = [];
+    snake.forEach(segment => {
+        const origSectionX = Math.floor(segment.x / sectionSize);
+        const origSectionY = Math.floor(segment.y / sectionSize);
+        const origSection = origSectionY * 4 + origSectionX;
+        const newSection = dataScrambleMap[origSection];
+        const newSectionX = newSection % 4;
+        const newSectionY = Math.floor(newSection / 4);
+        const offsetX = (newSectionX - origSectionX) * sectionSize;
+        const offsetY = (newSectionY - origSectionY) * sectionSize;
+        const newPos = { x: segment.x + offsetX, y: segment.y + offsetY };
+
+        if (newSnake.length === 0 || 
+            (Math.abs(newPos.x - newSnake[newSnake.length - 1].x) <= 1 && 
+             Math.abs(newPos.y - newSnake[newSnake.length - 1].y) <= 1)) {
+            newSnake.push(newPos);
+        } else {
+            severedSegments.push(newPos);
+        }
+    });
+    snake = newSnake;
+    if (severedSegments.length > 0) {
+        lostSegments.push({ tail: severedSegments });
+    }
+
+    if (targetBit) {
+        const origSectionX = Math.floor(targetBit.x / sectionSize);
+        const origSectionY = Math.floor(targetBit.y / sectionSize);
+        const origSection = origSectionY * 4 + origSectionX;
+        const newSection = dataScrambleMap[origSection];
+        const newSectionX = newSection % 4;
+        const newSectionY = Math.floor(newSection / 4);
+        const offsetX = (newSectionX - origSectionX) * sectionSize;
+        const offsetY = (newSectionY - origSectionY) * sectionSize;
+        targetBit.x += offsetX;
+        targetBit.y += offsetY;
+    }
+
+    showEvent('Data Scramble!');
+}
+
+function partitionsCreated() {
+    partitions = [];
+    const partitionCount = Math.floor(Math.random() * 3) + 2;
+    for (let i = 0; i < partitionCount; i++) {
+        const partition = [];
+        const length = Math.floor(Math.random() * 5) + 3;
+        const startX = Math.floor(Math.random() * (tileCount - 2 - length)) + 1;
+        const startY = Math.floor(Math.random() * (tileCount - 2)) + 1;
+        const direction = Math.random() < 0.5 ? { dx: 1, dy: 0 } : { dx: 0, dy: 1 };
+        let valid = true;
+        for (let j = 0; j < length; j++) {
+            const pos = { x: startX + j * direction.dx, y: startY + j * direction.dy };
+            if (isOccupied(pos) || pos.x > tileCount - 2 || pos.y > tileCount - 2) {
+                valid = false;
+                break;
+            }
+            partition.push(pos);
+        }
+        if (valid && partition.length > 0) partitions.push(partition);
+    }
+    partitionsTimer = 15;
+    dataScrambleActive = false;
+    showEvent('Partitions Created!');
+}
+
+function corruptedDrivers() {
+    corruptedDriversActive = true;
+    corruptedTimer = 15;
+    dataScrambleActive = false;
+    showEvent('Corrupted Drivers!');
+}
+
+function fragmentedDrive() {
+    fragmentedDriveActive = true;
+    fragmentedTimer = 30;
+    dataScrambleActive = false;
+    showEvent('Fragmented Drive!');
+
+    const headX = snake[0].x;
+    let leftCol;
+    do {
+        leftCol = Math.floor(Math.random() * 45) + 10;
+        deathColumns = [leftCol, leftCol + 1];
+    } while (Math.abs(headX - deathColumns[0]) <= 8 || Math.abs(headX - deathColumns[1]) <= 8);
+
+    let severIndex = -1;
+    for (let i = 1; i < snake.length; i++) {
+        if (snake[i].x === deathColumns[0] || snake[i].x === deathColumns[1]) {
+            severIndex = i;
+            break;
+        }
+    }
+    if (severIndex !== -1) {
+        const severedTail = snake.splice(severIndex);
+        lostSegments.push({ tail: severedTail });
+    }
 }
 
 function checkCollision(head) {
-    return head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount || 
+    if (fragmentedDriveActive) {
+        if (head.x === deathColumns[0] || head.x === deathColumns[1]) return true;
+    }
+    return (head.x <= 0 || head.x >= tileCount - 1 || head.y <= 0 || head.y >= tileCount - 1) && !fragmentedDriveActive || 
            snake.some(segment => segment.x === head.x && segment.y === head.y) ||
            bugs.some(b => b.segments.some(seg => seg.x === head.x && seg.y === head.y)) ||
            partitions.some(p => p.some(seg => seg.x === head.x && seg.y === head.y));
 }
 
 function resetGame() {
-    snake = [{ x: 32, y: 32 }];
+    snake = [{ x: 33, y: 33 }];
     const directions = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
     const randomDir = directions[Math.floor(Math.random() * directions.length)];
     dx = randomDir.dx;
     dy = randomDir.dy;
     moveQueue = [];
     bitsCollected = 0;
-    timer = 15;
+    timer = 10;
     bugs = [];
     partitions = [];
+    partitionsTimer = 0;
+    corruptedDriversActive = false;
+    corruptedTimer = 0;
+    fragmentedDriveActive = false;
+    fragmentedTimer = 0;
+    dataScrambleActive = false;
+    dataScrambleMap = [];
+    magneticActive = false;
+    magneticTimer = 0;
     lostSegments = [];
-    glitchActive = false;
+    rejoiningSegments = [];
     eventMessage = '';
-    eventTimer = 0;
+    deathColumns = [0, 0];
     spawnBit();
     gameRunning = true;
     deathAnimation = false;
@@ -284,232 +830,14 @@ function showEvent(message) {
     eventTimer = 2;
 }
 
-// Glitch Functions
 function triggerGlitch() {
-    glitchActive = true;
-    const glitches = [bugAttack, dataScramble, partitionsCreated]; // Re-added partitionsCreated
-    const glitch = glitches[Math.floor(Math.random() * glitches.length)];
+    const glitchOptions = fragmentedDriveActive 
+        ? [bugAttack, dataScramble, partitionsCreated, corruptedDrivers] 
+        : [bugAttack, dataScramble, partitionsCreated, corruptedDrivers, fragmentedDrive];
+    const glitch = glitchOptions[Math.floor(Math.random() * glitchOptions.length)];
     glitch();
 }
 
-function updateGlitch() {
-    if (glitchDuration > 0) {
-        glitchDuration -= tickSpeed / 1000;
-        if (glitchDuration <= 0) {
-            endGlitch();
-        }
-    }
-    updateBugs();
-}
-
-function drawGlitch() {
-    bugs.forEach(bug => {
-        bug.segments.forEach(segment => {
-            ctx.fillStyle = '#ffff00';
-            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
-        });
-    });
-    partitions.forEach(partition => {
-        partition.forEach(segment => {
-            ctx.fillStyle = '#ff8000';
-            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
-        });
-    });
-}
-
-function endGlitch() {
-    bugs = [];
-    partitions = [];
-    glitchActive = false;
-    timer = 15;
-}
-
-function bugAttack() {
-    bugs = [];
-    for (let i = 0; i < 5; i++) {
-        const bug = spawnBug();
-        if (bug) bugs.push(bug);
-    }
-    glitchDuration = Infinity;
-    showEvent('Bug Attack!');
-}
-
-function spawnBug() {
-    const start = { x: Math.floor(Math.random() * (tileCount - 2)) + 1, y: Math.floor(Math.random() * (tileCount - 2)) + 1 };
-    if (isOccupied(start)) return null;
-    const bug = [start];
-    const directions = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
-    const direction = directions[Math.floor(Math.random() * directions.length)];
-    for (let i = 1; i < 9; i++) {
-        const prev = bug[i - 1];
-        const segment = { x: prev.x - direction.dx, y: prev.y - direction.dy };
-        if (isOccupied(segment) || segment.x < 1 || segment.x >= tileCount - 1 || segment.y < 1 || segment.y >= tileCount - 1) break;
-        bug.push(segment);
-    }
-    return bug.length === 9 ? { segments: bug, direction, nextTurn: 0.2 + Math.random() * 2.3 } : null;
-}
-
-function updateBugs() {
-    bugs = bugs.filter(bug => {
-        bug.nextTurn -= tickSpeed / 1000;
-        if (bug.nextTurn <= 0) {
-            const directions = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
-            bug.direction = directions[Math.floor(Math.random() * directions.length)];
-            bug.nextTurn = 0.2 + Math.random() * 2.3;
-        }
-
-        const head = { x: bug.segments[0].x + bug.direction.dx, y: bug.segments[0].y + bug.direction.dy };
-        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount || 
-            snake.some(s => s.x === head.x && s.y === head.y && (s !== snake[0] || (s === snake[0] && (gameRunning = false)))) ||
-            bugs.some(b => b !== bug && b.segments.some(seg => seg.x === head.x && seg.y === head.y)) ||
-            partitions.some(p => p.some(seg => seg.x === head.x && seg.y === head.y))) {
-            return false;
-        }
-        bug.segments.unshift(head);
-        bug.segments.pop();
-        return true;
-    });
-    if (bugs.length === 0 && glitchDuration === Infinity) endGlitch();
-}
-
-function dataScramble() {
-    const chunkSize = tileCount / 4; // 16x16 chunks
-    const grid = Array(16).fill().map(() => ({ snake: [], bugs: [], partitions: [], bit: null }));
-    
-    snake.forEach((segment, i) => {
-        const chunkX = Math.floor(segment.x / chunkSize);
-        const chunkY = Math.floor(segment.y / chunkSize);
-        grid[chunkY * 4 + chunkX].snake.push({ ...segment, originalIndex: i });
-    });
-    if (targetBit) {
-        const bitX = Math.floor(targetBit.x / chunkSize);
-        const bitY = Math.floor(targetBit.y / chunkSize);
-        grid[bitY * 4 + bitX].bit = { ...targetBit };
-    }
-    bugs.forEach(bug => {
-        bug.segments.forEach((segment, i) => {
-            const chunkX = Math.floor(segment.x / chunkSize);
-            const chunkY = Math.floor(segment.y / chunkSize);
-            grid[chunkY * 4 + chunkX].bugs.push({ ...segment, bugIndex: bugs.indexOf(bug), segIndex: i });
-        });
-    });
-    partitions.forEach(partition => {
-        partition.forEach((segment, i) => {
-            const chunkX = Math.floor(segment.x / chunkSize);
-            const chunkY = Math.floor(segment.y / chunkSize);
-            grid[chunkY * 4 + chunkX].partitions.push({ ...segment, partIndex: partitions.indexOf(partition), segIndex: i });
-        });
-    });
-
-    const headChunk = Math.floor(snake[0].x / chunkSize) + Math.floor(snake[0].y / chunkSize) * 4;
-    const centerChunks = [5, 6, 9, 10];
-
-    const shuffled = grid.slice();
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        if (i === headChunk) continue;
-        let j = Math.floor(Math.random() * (i + 1));
-        if (j === headChunk) j = (j + 1) % (i + 1);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    const headDest = centerChunks[Math.floor(Math.random() * 4)];
-    const headSrcIdx = shuffled.indexOf(grid[headChunk]);
-    [shuffled[headSrcIdx], shuffled[headDest]] = [shuffled[headDest], shuffled[headSrcIdx]];
-
-    let newSnake = [];
-    lostSegments = [];
-    bugs = [];
-    partitions = [];
-    targetBit = null;
-
-    shuffled.forEach((chunk, idx) => {
-        const newChunkX = (idx % 4) * chunkSize;
-        const newChunkY = Math.floor(idx / 4) * chunkSize;
-
-        if (idx === headDest) {
-            chunk.snake.forEach(segment => {
-                const newX = newChunkX + (segment.x % chunkSize);
-                const newY = newChunkY + (segment.y % chunkSize);
-                newSnake.push({ x: newX, y: newY });
-            });
-        } else if (chunk.snake.length > 0) {
-            const tail = chunk.snake.map(segment => ({
-                x: newChunkX + (segment.x % chunkSize),
-                y: newChunkY + (segment.y % chunkSize)
-            }));
-            lostSegments.push({ x: tail[0].x, y: tail[0].y, tail });
-        }
-
-        if (chunk.bit) {
-            const newX = newChunkX + (chunk.bit.x % chunkSize);
-            const newY = newChunkY + (chunk.bit.y % chunkSize);
-            if (!isOccupied({ x: newX, y: newY })) {
-                targetBit = { x: newX, y: newY, isStabilizing: chunk.bit.isStabilizing };
-            }
-        }
-
-        chunk.bugs.forEach(seg => {
-            const newX = newChunkX + (seg.x % chunkSize);
-            const newY = newChunkY + (seg.y % chunkSize);
-            if (!bugs[seg.bugIndex]) bugs[seg.bugIndex] = { segments: [], direction: { dx: 1, dy: 0 }, nextTurn: 0.2 + Math.random() * 2.3 };
-            bugs[seg.bugIndex].segments[seg.segIndex] = { x: newX, y: newY };
-        });
-
-        chunk.partitions.forEach(seg => {
-            const newX = newChunkX + (seg.x % chunkSize);
-            const newY = newChunkY + (seg.y % chunkSize);
-            if (!partitions[seg.partIndex]) partitions[seg.partIndex] = [];
-            partitions[seg.partIndex][seg.segIndex] = { x: newX, y: newY };
-        });
-    });
-
-    snake = newSnake.sort((a, b) => a.originalIndex - b.originalIndex);
-    bugs = bugs.filter(b => b && b.segments.length === 9);
-    partitions = partitions.filter(p => p && p.length > 1);
-
-    glitchDuration = 0;
-    endGlitch();
-    showEvent('Data Scramble!');
-}
-
-function partitionsCreated() {
-    partitions = [];
-    const numSegments = 6 + Math.floor(Math.random() * 5);
-    for (let i = 0; i < numSegments; i++) {
-        const length = 3 + Math.floor(Math.random() * 8);
-        const segment = spawnPartition(length);
-        if (segment) partitions.push(segment);
-    }
-    glitchDuration = 15;
-    showEvent('Partitions Created!');
-}
-
-function spawnPartition(length) {
-    const start = { x: Math.floor(Math.random() * (tileCount - 2)) + 1, y: Math.floor(Math.random() * (tileCount - 2)) + 1 };
-    if (isOccupied(start)) return null;
-    
-    const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    const dir = directions[Math.floor(Math.random() * 4)];
-    const partition = [start];
-    
-    const head = snake[0];
-    const vectorX = dx !== 0 ? head.x + dx * tileCount : null;
-    const vectorY = dy !== 0 ? head.y + dy * tileCount : null;
-
-    for (let i = 1; i < length; i++) {
-        const prev = partition[i - 1];
-        const segment = { x: prev.x + dir[0], y: prev.y + dir[1] };
-        
-        if (segment.x < 1 || segment.x >= tileCount - 1 || segment.y < 1 || segment.y >= tileCount - 1 || isOccupied(segment) ||
-            (dx !== 0 && segment.y === head.y && ((dx > 0 && segment.x > head.x) || (dx < 0 && segment.x < head.x))) ||
-            (dy !== 0 && segment.x === head.x && ((dy > 0 && segment.y > head.y) || (dy < 0 && segment.y < head.y)))) {
-            break;
-        }
-        partition.push(segment);
-    }
-    return partition.length > 1 ? partition : null;
-}
-
-// Controls
 document.addEventListener('keydown', e => {
     if (e.key === ' ' && !gameRunning) {
         resetGame();
@@ -561,12 +889,10 @@ canvas.addEventListener('touchmove', e => {
     touchStartY = touchEndY;
 });
 
-// Initialization
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 startGame();
 
-// Add roundRect support for glow effect
 if (!CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function (x, y, width, height, radius) {
         this.beginPath();
