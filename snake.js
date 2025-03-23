@@ -269,7 +269,7 @@ function update(deltaTime) {
         if (eventTimer <= 0) eventMessage = '';
     }
 
-    scoreDisplay.textContent = `Bits: ${bitsCollected}  High Score: ${highScore}`;
+    scoreDisplay.textContent = `Bits: ${bitsCollected} --- High Score: ${highScore}`;
 }
 
 function draw() {
